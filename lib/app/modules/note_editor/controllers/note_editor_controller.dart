@@ -9,6 +9,7 @@ import '../../../data/models/tag_model.dart' as tag_model;
 import '../../../data/repositories/note_repository.dart';
 import '../../../data/repositories/tag_repository.dart';
 import '../../../data/services/supabase_service.dart';
+import '../../../modules/home/controllers/home_controller.dart';
 
 class NoteEditorController extends GetxController {
   final NoteRepository _noteRepository = Get.find<NoteRepository>();
@@ -148,8 +149,29 @@ class NoteEditorController extends GetxController {
           value: userId,
         ),
         callback: (payload) {
-          print('Tag change detected');
+          print('Tag change detected: ${payload.eventType}');
+          
+          // Handle tag deletion - remove from selected tags if it was deleted
+          if (payload.eventType == 'DELETE' && payload.oldRecord != null) {
+            final deletedTagId = payload.oldRecord!['id'] as String;
+            selectedTags.removeWhere((tag) => tag.id == deletedTagId);
+            
+            // Update note.tags collection to keep it in sync
+            final updatedTags = note.tags.where((tag) => tag.id != deletedTagId).toList();
+            note = note.copyWith(tags: updatedTags);
+          }
+          
           loadTags();
+          
+          // Also update the HomeController if it exists and the event is INSERT
+          if (payload.eventType == 'INSERT' && Get.isRegistered<HomeController>()) {
+            final homeController = Get.find<HomeController>();
+            
+            // Only trigger a reload if we're not already in the middle of a user-initiated tag creation
+            if (!isSaving.value) {
+              homeController.loadTags();
+            }
+          }
         },
       );
       _tagChannel!.subscribe();
@@ -166,7 +188,48 @@ class NoteEditorController extends GetxController {
           value: note.id,
         ),
         callback: (payload) {
-          print('Note tag mapping changed');
+          print('Note tag mapping changed: ${payload.eventType}');
+          
+          // We'll manually handle the tag changes to prevent duplicates
+          // For INSERT operations, we can add the tag directly if we have it
+          if (payload.eventType == 'INSERT' && payload.newRecord != null) {
+            final tagId = payload.newRecord!['tag_id'] as String;
+            // Only add if not already in the selected tags
+            if (!selectedTags.any((tag) => tag.id == tagId)) {
+              // Find the tag in our all tags list
+              tag_model.Tag? matchingTag;
+              for (var tag in tags) {
+                if (tag.id == tagId) {
+                  matchingTag = tag;
+                  break;
+                }
+              }
+              
+              if (matchingTag != null) {
+                // Add to selected tags
+                selectedTags.add(matchingTag);
+                // Add to note tags
+                final updatedTags = [...note.tags, matchingTag];
+                note = note.copyWith(tags: updatedTags);
+                _updateAvailableTags();
+                return; // We've handled this event, no need to reload all tags
+              }
+            }
+          }
+          
+          // For DELETE operations, we can remove the tag directly
+          if (payload.eventType == 'DELETE' && payload.oldRecord != null) {
+            final tagId = payload.oldRecord!['tag_id'] as String;
+            // Remove from selected tags
+            selectedTags.removeWhere((tag) => tag.id == tagId);
+            // Remove from note tags
+            final updatedTags = note.tags.where((tag) => tag.id != tagId).toList();
+            note = note.copyWith(tags: updatedTags);
+            _updateAvailableTags();
+            return; // We've handled this event, no need to reload all tags
+          }
+          
+          // For any other cases or if we couldn't handle directly, reload all tags
           loadTags();
         },
       );
@@ -458,7 +521,10 @@ class NoteEditorController extends GetxController {
       
       // Refresh note to get latest tags
       final updatedNote = await _noteRepository.getNote(note.id);
-      selectedTags.value = updatedNote.tags;
+      
+      // Clear and repopulate to prevent duplicates
+      selectedTags.clear();
+      selectedTags.addAll(updatedNote.tags);
       
       // Update local note with latest tags
       note = note.copyWith(tags: updatedNote.tags);
@@ -546,10 +612,21 @@ class NoteEditorController extends GetxController {
   
   Future<void> addTagToNote(tag_model.Tag tag) async {
     try {
+      // Check if tag is already added to avoid duplicates
+      if (selectedTags.any((t) => t.id == tag.id)) {
+        print('Tag already added to note');
+        return;
+      }
+      
       await _noteRepository.addTagToNote(noteId: note.id, tagId: tag.id);
       
       // Update the selected tags
       selectedTags.add(tag);
+      
+      // Also update the note.tags collection to keep it in sync
+      final updatedTags = [...note.tags, tag];
+      note = note.copyWith(tags: updatedTags);
+      
       _updateAvailableTags();
     } catch (e) {
       print('Error adding tag to note: $e');
@@ -593,8 +670,25 @@ class NoteEditorController extends GetxController {
       // Add to note
       await _noteRepository.addTagToNote(noteId: note.id, tagId: newTag.id);
       
-      // Update tags (will be refreshed via realtime subscription)
-      Get.back(); // Close dialog
+      // Update the HomeController's tags list if it exists
+      if (Get.isRegistered<HomeController>()) {
+        final homeController = Get.find<HomeController>();
+        homeController.tags.add(newTag);
+        homeController.tags.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase())); // Sort tags
+      }
+      
+      // Update local selected tags to make tag visible in the note
+      selectedTags.add(newTag);
+      
+      // Update note.tags collection to keep it in sync
+      final updatedTags = [...note.tags, newTag];
+      note = note.copyWith(tags: updatedTags);
+      
+      // Update available tags list
+      _updateAvailableTags();
+      
+      // Close dialog
+      Get.back();
     } catch (e) {
       print('Error creating and adding tag: $e');
       Get.snackbar(
@@ -614,5 +708,62 @@ class NoteEditorController extends GetxController {
     
     // Return the updated note directly to the calling screen
     Get.back(result: note);
+  }
+  
+  // Method to delete the current note
+  Future<void> deleteNote() async {
+    try {
+      await _noteRepository.deleteNote(id: note.id);
+      
+      // Show success message
+      Get.snackbar(
+        'Success',
+        'Note deleted successfully',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+      
+      // Return to home screen with a special result to indicate deletion
+      Get.back(result: 'deleted:${note.id}');
+    } catch (e) {
+      print('Error deleting note: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to delete note: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+  
+  // Show confirmation dialog before deleting
+  void confirmDelete() {
+    Get.dialog(
+      AlertDialog(
+        title: const Text('Delete Note'),
+        content: const Text('Are you sure you want to delete this note?\nThis action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(), // Close dialog
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Get.back(); // Close dialog
+              deleteNote(); // Delete the note
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 } 

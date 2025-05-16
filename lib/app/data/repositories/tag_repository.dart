@@ -60,7 +60,17 @@ class TagRepository {
 
   Future<void> deleteTag({required String id}) async {
     try {
-      await _supabaseService.client.from('tags').delete().eq('id', id);
+      // First delete all note-tag associations for this tag
+      await _supabaseService.client
+          .from('note_tags')
+          .delete()
+          .eq('tag_id', id);
+      
+      // Then delete the tag itself
+      await _supabaseService.client
+          .from('tags')
+          .delete()
+          .eq('id', id);
     } catch (e) {
       print('Error deleting tag: $e');
       rethrow;

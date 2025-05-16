@@ -34,6 +34,10 @@ class HomeController extends GetxController {
   final TextEditingController newFolderController = TextEditingController();
   final TextEditingController newTagController = TextEditingController();
   
+  // For editing folder/tag
+  final TextEditingController editFolderController = TextEditingController();
+  final TextEditingController editTagController = TextEditingController();
+  
   // Realtime channels
   RealtimeChannel? _notesChannel;
   RealtimeChannel? _foldersChannel;
@@ -68,6 +72,8 @@ class HomeController extends GetxController {
     _noteTagsChannel?.unsubscribe();
     newFolderController.dispose();
     newTagController.dispose();
+    editFolderController.dispose();
+    editTagController.dispose();
     super.onClose();
   }
   
@@ -159,9 +165,12 @@ class HomeController extends GetxController {
     }
   }
   
-  Future<void> loadNotes() async {
+  Future<void> loadNotes({String? specificFolderId}) async {
     try {
-      if (selectedFolder.value != null) {
+      if (specificFolderId != null) {
+        // When a specific folder ID is provided, load notes for that folder
+        notes.value = await _noteRepository.getNotes(folderId: specificFolderId);
+      } else if (selectedFolder.value != null) {
         notes.value = await _noteRepository.getNotes(folderId: selectedFolder.value!.id);
       } else if (selectedTag.value != null) {
         notes.value = await _noteRepository.getNotesByTag(selectedTag.value!.id);
@@ -298,8 +307,20 @@ class HomeController extends GetxController {
   Future<void> deleteTag(String id) async {
     try {
       await _tagRepository.deleteTag(id: id);
+      
       // Remove tag from the observable list immediately
       tags.removeWhere((tag) => tag.id == id);
+      
+      // Update any notes in the current view that have this tag
+      for (int i = 0; i < notes.length; i++) {
+        if (notes[i].tags.any((tag) => tag.id == id)) {
+          // Create a new list without the deleted tag
+          final updatedTags = notes[i].tags.where((tag) => tag.id != id).toList();
+          // Update the note with the new tag list
+          notes[i] = notes[i].copyWith(tags: updatedTags);
+        }
+      }
+      
       if (selectedTag.value?.id == id) {
         selectedTag.value = null;
         loadNotes();
@@ -402,9 +423,34 @@ class HomeController extends GetxController {
         // If the note was moved out of the currently selected folder
         if (selectedFolder.value != null && folderId != selectedFolder.value!.id) {
           notes.removeAt(noteIndex); // Remove note from the current folder view
+          
+          // Show success message for removing from folder
+          if (folderId == null) {
+            Get.snackbar(
+              'Note Removed',
+              'Note was removed from folder',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 2),
+            );
+          }
         } else if (selectedFolder.value == null || folderId == selectedFolder.value!.id) {
           // If we're in the "All Notes" view or the note was moved to the current folder, update it
           notes[noteIndex] = updatedNote;
+          
+          // Show success message for adding to folder
+          if (folderId != null) {
+            final folderName = folders.firstWhere((folder) => folder.id == folderId).name;
+            Get.snackbar(
+              'Note Moved',
+              'Note was moved to folder "$folderName"',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 2),
+            );
+          }
         }
       }
     } catch (e) {
@@ -450,6 +496,13 @@ class HomeController extends GetxController {
               notes[index] = result;
             }
           } 
+          // Check for deletion result
+          else if (result is String && result.startsWith('deleted:')) {
+            final deletedId = result.substring(8); // Extract the note ID
+            print('Note was deleted: $deletedId');
+            // Remove the note from the list
+            notes.removeWhere((note) => note.id == deletedId);
+          }
           // Otherwise just refresh the whole list
           else if (result == true) {
             print('Refreshing notes after returning from editor');
@@ -457,6 +510,72 @@ class HomeController extends GetxController {
           }
         }
       });
+    }
+  }
+  
+  Future<void> editFolder(Folder folder) async {
+    if (editFolderController.text.isEmpty) return;
+    
+    try {
+      final updatedFolder = folder.copyWith(name: editFolderController.text.trim());
+      final result = await _folderRepository.updateFolder(folder: updatedFolder);
+      
+      // Update the folder in the observable list immediately
+      final index = folders.indexWhere((f) => f.id == folder.id);
+      if (index != -1) {
+        folders[index] = result;
+        folders.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase())); // Sort folders
+      }
+      
+      // Update selected folder if it was the one edited
+      if (selectedFolder.value?.id == folder.id) {
+        selectedFolder.value = result;
+      }
+      
+      editFolderController.clear();
+      Get.back(); // Close dialog
+    } catch (e) {
+      print('Error editing folder: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to edit folder: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+  
+  Future<void> editTag(tag_model.Tag tag) async {
+    if (editTagController.text.isEmpty) return;
+    
+    try {
+      final updatedTag = tag.copyWith(name: editTagController.text.trim());
+      final result = await _tagRepository.updateTag(tag: updatedTag);
+      
+      // Update the tag in the observable list immediately
+      final index = tags.indexWhere((t) => t.id == tag.id);
+      if (index != -1) {
+        tags[index] = result;
+        tags.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase())); // Sort tags
+      }
+      
+      // Update selected tag if it was the one edited
+      if (selectedTag.value?.id == tag.id) {
+        selectedTag.value = result;
+      }
+      
+      editTagController.clear();
+      Get.back(); // Close dialog
+    } catch (e) {
+      print('Error editing tag: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to edit tag: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 }

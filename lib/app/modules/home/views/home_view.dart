@@ -219,11 +219,29 @@ class HomeView extends GetView<HomeController> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       selected: controller.selectedFolder.value?.id == folder.id,
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () {
-                          _showDeleteFolderDialog(context, folder);
-                        },
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.list_alt),
+                            tooltip: 'Manage Notes',
+                            onPressed: () {
+                              _showFolderNotesDialog(context, folder);
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () {
+                              _showEditFolderDialog(context, folder);
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () {
+                              _showDeleteFolderDialog(context, folder);
+                            },
+                          ),
+                        ],
                       ),
                       onTap: () {
                         controller.selectFolder(folder);
@@ -273,11 +291,22 @@ class HomeView extends GetView<HomeController> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       selected: controller.selectedTag.value?.id == tag.id,
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: () {
-                          _showDeleteTagDialog(context, tag);
-                        },
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () {
+                              _showEditTagDialog(context, tag);
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () {
+                              _showDeleteTagDialog(context, tag);
+                            },
+                          ),
+                        ],
                       ),
                       onTap: () {
                         controller.selectTag(tag);
@@ -382,6 +411,14 @@ class HomeView extends GetView<HomeController> {
                   icon: Icons.folder,
                   label: 'Move',
                 ),
+                if (note.folderId != null)
+                  SlidableAction(
+                    onPressed: (context) => _removeFromFolder(context, note),
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    icon: Icons.folder_off,
+                    label: 'Remove from Folder',
+                  ),
                 SlidableAction(
                   onPressed: (context) => _showDeleteNoteDialog(context, note),
                   backgroundColor: Colors.red,
@@ -684,6 +721,155 @@ class HomeView extends GetView<HomeController> {
           TextButton(
             onPressed: () => Get.back(),
             child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showEditFolderDialog(BuildContext context, Folder folder) {
+    controller.editFolderController.text = folder.name;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Folder'),
+        content: TextField(
+          controller: controller.editFolderController,
+          decoration: const InputDecoration(
+            hintText: 'Folder name',
+            prefixIcon: Icon(Icons.folder),
+          ),
+          autofocus: true,
+          onSubmitted: (_) => controller.editFolder(folder),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => controller.editFolder(folder),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showEditTagDialog(BuildContext context, tag_model.Tag tag) {
+    controller.editTagController.text = tag.name;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Tag'),
+        content: TextField(
+          controller: controller.editTagController,
+          decoration: const InputDecoration(
+            hintText: 'Tag name',
+            prefixIcon: Icon(Icons.tag),
+          ),
+          autofocus: true,
+          onSubmitted: (_) => controller.editTag(tag),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => controller.editTag(tag),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showFolderNotesDialog(BuildContext context, Folder folder) {
+    // We need to fetch notes for this specific folder
+    controller.loadNotes(specificFolderId: folder.id).then((_) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Notes in "${folder.name}"'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Obx(() {
+              final folderNotes = controller.notes.where((note) => note.folderId == folder.id).toList();
+              
+              if (folderNotes.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text('No notes in this folder'),
+                );
+              }
+              
+              return ListView.builder(
+                shrinkWrap: true,
+                itemCount: folderNotes.length,
+                itemBuilder: (context, index) {
+                  final note = folderNotes[index];
+                  return ListTile(
+                    title: Text(
+                      note.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      DateFormat('MMM d, yyyy').format(note.updatedAt),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.folder_off),
+                      tooltip: 'Remove from folder',
+                      onPressed: () {
+                        controller.moveNoteToFolder(note.id, null);
+                        // We need to refresh the list
+                        controller.loadNotes(specificFolderId: folder.id);
+                      },
+                    ),
+                    onTap: () {
+                      Get.back();
+                      controller.openNote(note);
+                    },
+                  );
+                },
+              );
+            }),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+  
+  void _removeFromFolder(BuildContext context, Note note) {
+    // Confirm with the user before removing from folder
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove from Folder'),
+        content: Text(
+          'Are you sure you want to remove "${note.title}" from its folder?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              controller.moveNoteToFolder(note.id, null);
+              Get.back();
+            },
+            child: const Text('Remove'),
           ),
         ],
       ),

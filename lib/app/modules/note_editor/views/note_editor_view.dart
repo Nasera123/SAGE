@@ -35,6 +35,12 @@ class NoteEditorView extends GetView<NoteEditorController> {
             },
           ),
           actions: [
+            // Delete button
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Delete Note',
+              onPressed: () => controller.confirmDelete(),
+            ),
             IconButton(
               icon: const Icon(Icons.tag),
               tooltip: 'Manage Tags',
