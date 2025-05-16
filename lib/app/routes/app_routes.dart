@@ -12,6 +12,8 @@ abstract class Routes {
   static const NOTE_EDITOR = _Paths.NOTE_EDITOR;
   static const SETTINGS = _Paths.SETTINGS;
   static const PROFILE = _Paths.PROFILE;
+  static const BOOK = _Paths.BOOK;
+  static const BOOK_LIST = _Paths.BOOK_LIST;
 }
 
 abstract class _Paths {
@@ -25,4 +27,6 @@ abstract class _Paths {
   static const NOTE_EDITOR = '/note_editor';
   static const SETTINGS = '/settings';
   static const PROFILE = '/profile';
+  static const BOOK = '/book';
+  static const BOOK_LIST = '/book_list';
 }

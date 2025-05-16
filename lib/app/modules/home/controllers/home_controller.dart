@@ -20,6 +20,44 @@ class HomeController extends GetxController {
   final hasError = false.obs;
   final errorMessage = ''.obs;
   
+  // Get user initials for avatar display
+  String getUserInitials() {
+    final user = _userRepository.currentUser;
+    if (user == null) return 'U';
+    
+    // Try to extract from email (username portion)
+    final email = user.email ?? '';
+    if (email.isNotEmpty) {
+      final username = email.split('@').first;
+      if (username.isNotEmpty) {
+        return username[0].toUpperCase();
+      }
+    }
+    
+    // Fallback
+    return 'U';
+  }
+  
+  // Get user display name
+  String getUserDisplayName() {
+    final user = _userRepository.currentUser;
+    if (user == null) return 'User';
+    
+    // Return user email or a default
+    return user.email?.split('@').first ?? 'User';
+  }
+  
+  // Get profile avatar URL if available
+  Future<String?> getUserProfileImage() async {
+    try {
+      final profile = await _userRepository.getUserProfile();
+      return profile?.avatarUrl;
+    } catch (e) {
+      print('Error getting user profile image: $e');
+      return null;
+    }
+  }
+  
   // Data
   final notes = <Note>[].obs;
   final folders = <Folder>[].obs;

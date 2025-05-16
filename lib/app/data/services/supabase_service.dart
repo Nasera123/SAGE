@@ -113,10 +113,10 @@ class SupabaseService extends GetxService {
     try {
       final channel = _client
           .channel('public:folders:${userId}')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'folders',
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'folders',
             filter: PostgresChangeFilter(
               type: PostgresChangeFilterType.eq,
               column: 'user_id',
@@ -124,7 +124,7 @@ class SupabaseService extends GetxService {
             ),
             callback: callback ?? (payload) {
               print('Folder change detected: ${payload.eventType} - ${payload.newRecord?['id']}');
-            },
+          },
           );
       
       return safelySubscribe(channel);
@@ -141,10 +141,10 @@ class SupabaseService extends GetxService {
     try {
       final channel = _client
           .channel('public:notes:${userId}')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'notes',
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notes',
             filter: PostgresChangeFilter(
               type: PostgresChangeFilterType.eq,
               column: 'user_id',
@@ -152,7 +152,7 @@ class SupabaseService extends GetxService {
             ),
             callback: callback ?? (payload) {
               print('Note change detected: ${payload.eventType} - ${payload.newRecord?['id']}');
-            },
+          },
           );
       
       return safelySubscribe(channel);
@@ -169,10 +169,10 @@ class SupabaseService extends GetxService {
     try {
       final channel = _client
           .channel('public:tags:${userId}')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'tags',
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'tags',
             filter: PostgresChangeFilter(
               type: PostgresChangeFilterType.eq,
               column: 'user_id',
@@ -180,7 +180,7 @@ class SupabaseService extends GetxService {
             ),
             callback: callback ?? (payload) {
               print('Tag change detected: ${payload.eventType} - ${payload.newRecord?['id']}');
-            },
+          },
           );
       
       return safelySubscribe(channel);
@@ -201,13 +201,13 @@ class SupabaseService extends GetxService {
       
       final channel = _client
           .channel('public:note_tags:${userId}')
-          .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: 'public',
-            table: 'note_tags',
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'note_tags',
             callback: callback ?? (payload) {
               print('Note tag change detected: ${payload.eventType} - ${payload.newRecord?['note_id']}');
-            },
+          },
           );
       
       return safelySubscribe(channel);

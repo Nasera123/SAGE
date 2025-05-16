@@ -4,6 +4,7 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app/routes/app_pages.dart';
 import 'app/data/services/supabase_service.dart';
+import 'app/init_db.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,8 +14,12 @@ void main() async {
     print('Initializing Supabase...');
     final service = await SupabaseService.initialize();
     print('Supabase initialized successfully: ${service.hashCode}');
+    
+    // Initialize database
+    print('Initializing database...');
+    await DatabaseInitializer.initializeDatabase();
   } catch (e) {
-    print('Error initializing Supabase: $e');
+    print('Error during initialization: $e');
     // Continue with app launch as authentication might be handled in splash screen
   }
   

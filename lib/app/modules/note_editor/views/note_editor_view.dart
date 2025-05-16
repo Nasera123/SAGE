@@ -17,11 +17,11 @@ class NoteEditorView extends GetView<NoteEditorController> {
         return false; // We handle the back navigation manually
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Obx(() => controller.isLoading.value 
-            ? const Text('Loading...') 
-            : const Text('Edit Note')
-          ),
+      appBar: AppBar(
+        title: Obx(() => controller.isLoading.value 
+          ? const Text('Loading...') 
+          : const Text('Edit Note')
+        ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () async {
@@ -34,117 +34,117 @@ class NoteEditorView extends GetView<NoteEditorController> {
               Get.back(result: controller.note);
             },
           ),
-          actions: [
+        actions: [
             // Delete button
             IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: 'Delete Note',
               onPressed: () => controller.confirmDelete(),
             ),
-            IconButton(
-              icon: const Icon(Icons.tag),
-              tooltip: 'Manage Tags',
-              onPressed: () => _showTagsDialog(context),
+          IconButton(
+            icon: const Icon(Icons.tag),
+            tooltip: 'Manage Tags',
+            onPressed: () => _showTagsDialog(context),
+          ),
+          Obx(() {
+            if (controller.isSaving.value) {
+              return const Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              );
+            }
+            
+            return IconButton(
+              icon: const Icon(Icons.save),
+              tooltip: 'Save Note',
+              onPressed: () => controller.saveNote(),
+            );
+          }),
+        ],
+      ),
+      body: Obx(() {
+        if (controller.isLoading.value) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        
+        if (controller.hasError.value) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  'Error loading note',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(controller.errorMessage.value),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => Get.back(),
+                  child: const Text('Go Back'),
+                ),
+              ],
             ),
-            Obx(() {
-              if (controller.isSaving.value) {
-                return const Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
+          );
+        }
+        
+        // Status indicator
+        final statusWidget = Obx(() {
+          if (controller.isAutosaving.value) {
+            return const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 12,
+                    height: 12,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                );
-              }
-              
-              return IconButton(
-                icon: const Icon(Icons.save),
-                tooltip: 'Save Note',
-                onPressed: () => controller.saveNote(),
-              );
-            }),
-          ],
-        ),
-        body: Obx(() {
-          if (controller.isLoading.value) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          
-          if (controller.hasError.value) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                  SizedBox(width: 8),
+                  Text('Autosaving...', style: TextStyle(fontSize: 12)),
+                ],
+              ),
+            );
+          } else if (controller.isDirty.value) {
+            return const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Row(
+                  mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error loading note',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(controller.errorMessage.value),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => Get.back(),
-                    child: const Text('Go Back'),
-                  ),
+                  Icon(Icons.edit, size: 12),
+                  SizedBox(width: 8),
+                  Text('Unsaved changes', style: TextStyle(fontSize: 12)),
+                ],
+              ),
+            );
+          } else {
+            return const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check, size: 12, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text('All changes saved', style: TextStyle(fontSize: 12)),
                 ],
               ),
             );
           }
-          
-          // Status indicator
-          final statusWidget = Obx(() {
-            if (controller.isAutosaving.value) {
-              return const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                    SizedBox(width: 8),
-                    Text('Autosaving...', style: TextStyle(fontSize: 12)),
-                  ],
-                ),
-              );
-            } else if (controller.isDirty.value) {
-              return const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.edit, size: 12),
-                    SizedBox(width: 8),
-                    Text('Unsaved changes', style: TextStyle(fontSize: 12)),
-                  ],
-                ),
-              );
-            } else {
-              return const Padding(
-                padding: EdgeInsets.all(8.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.check, size: 12, color: Colors.green),
-                    SizedBox(width: 8),
-                    Text('All changes saved', style: TextStyle(fontSize: 12)),
-                  ],
-                ),
-              );
-            }
-          });
-          
-          return Column(
-            children: [
-              // Title field
+        });
+        
+        return Column(
+          children: [
+            // Title field
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: TextField(
-                  controller: controller.titleController,
+              child: TextField(
+                controller: controller.titleController,
                   focusNode: controller.titleFocusNode,
                   textInputAction: TextInputAction.next,
                   onSubmitted: (_) {
@@ -153,7 +153,7 @@ class NoteEditorView extends GetView<NoteEditorController> {
                     controller.editorFocusNode.requestFocus();
                   },
                   decoration: InputDecoration(
-                    hintText: 'Note Title',
+                  hintText: 'Note Title',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(
@@ -177,36 +177,36 @@ class NoteEditorView extends GetView<NoteEditorController> {
                     fillColor: Theme.of(context).colorScheme.surface,
                   ),
                   style: Theme.of(context).textTheme.titleLarge,
-                ),
               ),
+            ),
+            
+            // Tags section
+            Obx(() {
+              if (controller.selectedTags.isEmpty) {
+                return const SizedBox.shrink();
+              }
               
-              // Tags section
-              Obx(() {
-                if (controller.selectedTags.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Wrap(
-                    spacing: 8.0,
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Wrap(
+                  spacing: 8.0,
                     runSpacing: 4.0,
-                    children: controller.selectedTags.map((tag) => Chip(
-                      label: Text(tag.name),
+                  children: controller.selectedTags.map((tag) => Chip(
+                    label: Text(tag.name),
                       deleteIcon: const Icon(Icons.close, size: 16),
-                      onDeleted: () => controller.removeTagFromNote(tag),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
+                    onDeleted: () => controller.removeTagFromNote(tag),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
                       backgroundColor: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.7),
                       labelStyle: TextStyle(
                         color: Theme.of(context).colorScheme.onPrimaryContainer,
                         fontSize: 12,
                       ),
-                    )).toList(),
-                  ),
-                );
-              }),
-              
+                  )).toList(),
+                ),
+              );
+            }),
+            
               // Divider
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -247,11 +247,11 @@ class NoteEditorView extends GetView<NoteEditorController> {
                     ),
                   ),
                 ),
-              ),
-              
-              // Editor
-              Expanded(
-                child: Container(
+            ),
+            
+            // Editor
+            Expanded(
+              child: Container(
                   padding: const EdgeInsets.all(16.0),
                   color: Theme.of(context).colorScheme.background.withOpacity(0.5),
                   child: Container(
@@ -266,15 +266,15 @@ class NoteEditorView extends GetView<NoteEditorController> {
                         ),
                       ],
                     ),
-                    padding: const EdgeInsets.all(16.0),
-                    child: QuillEditor.basic(
-                      controller: controller.quillController,
+                padding: const EdgeInsets.all(16.0),
+                child: QuillEditor.basic(
+                  controller: controller.quillController,
                       focusNode: controller.editorFocusNode,
-                    ),
                   ),
                 ),
               ),
-              
+            ),
+            
               // Status and autosave indicator
               Container(
                 color: Theme.of(context).colorScheme.surface,
@@ -284,7 +284,7 @@ class NoteEditorView extends GetView<NoteEditorController> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Status indicator
+            // Status indicator
                       statusWidget,
                       
                       const SizedBox(width: 16),
@@ -300,10 +300,10 @@ class NoteEditorView extends GetView<NoteEditorController> {
                     ],
                   ),
                 ),
-              ),
-            ],
-          );
-        }),
+            ),
+          ],
+        );
+      }),
       ),
     );
   }

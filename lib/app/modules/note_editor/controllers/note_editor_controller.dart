@@ -410,7 +410,7 @@ class NoteEditorController extends GetxController {
           // Check if it's a Delta object or needs conversion
           if (contentJson is List && contentJson.isNotEmpty && contentJson[0] is Map) {
             // Properly formatted Delta JSON
-            document = Document.fromJson(contentJson);
+        document = Document.fromJson(contentJson);
           } else if (contentJson is Map && contentJson.containsKey('ops')) {
             // Formatted as {ops: [...]} structure
             document = Document.fromJson(contentJson['ops']);
@@ -438,7 +438,7 @@ class NoteEditorController extends GetxController {
           // If all else fails, create a document with the sanitized content or an empty document
           try {
             document = Document.fromJson([{"insert": sanitizedContent}]);
-          } catch (e) {
+      } catch (e) {
             // Last resort - empty document instead of placeholder text
             document = Document();
           }
@@ -446,7 +446,7 @@ class NoteEditorController extends GetxController {
       }
       
       _quillController = QuillController(
-        document: document, 
+        document: document,
         selection: const TextSelection.collapsed(offset: 0)
       );
       

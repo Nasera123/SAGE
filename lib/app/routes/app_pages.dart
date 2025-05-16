@@ -15,6 +15,10 @@ import '../modules/settings/bindings/settings_binding.dart';
 import '../modules/settings/views/settings_view.dart';
 import '../modules/profile/bindings/profile_binding.dart';
 import '../modules/profile/views/profile_view.dart';
+import '../modules/book/bindings/book_binding.dart';
+import '../modules/book/views/book_view.dart';
+import '../modules/book/bindings/book_list_binding.dart';
+import '../modules/book/views/book_list_view.dart';
 
 part 'app_routes.dart';
 
@@ -67,6 +71,16 @@ class AppPages {
       name: _Paths.PROFILE,
       page: () => const ProfileView(),
       binding: ProfileBinding(),
+    ),
+    GetPage(
+      name: _Paths.BOOK,
+      page: () => const BookView(),
+      binding: BookBinding(),
+    ),
+    GetPage(
+      name: _Paths.BOOK_LIST,
+      page: () => const BookListView(),
+      binding: BookListBinding(),
     ),
   ];
 }
