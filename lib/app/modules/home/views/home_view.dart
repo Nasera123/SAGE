@@ -128,8 +128,8 @@ class HomeView extends GetView<HomeController> {
   Widget _buildDrawer(BuildContext context) {
     return Drawer(
       child: SafeArea(
-        child: Column(
-          children: [
+      child: Column(
+        children: [
                           // Top section with user info
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -164,7 +164,7 @@ class HomeView extends GetView<HomeController> {
                               child: Text(
                                 controller.getUserInitials(),
                                 style: TextStyle(
-                                  color: Theme.of(context).colorScheme.primary,
+              color: Theme.of(context).colorScheme.primary,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -172,14 +172,14 @@ class HomeView extends GetView<HomeController> {
                           }
                         },
                       ),
-                    ),
+            ),
                                       const SizedBox(width: 12),
                     Expanded(
                       child: GestureDetector(
                         onTap: () => Get.toNamed(Routes.PROFILE),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                             Text(
                               controller.getUserDisplayName(),
                               style: const TextStyle(
@@ -187,8 +187,8 @@ class HomeView extends GetView<HomeController> {
                                 fontSize: 16,
                               ),
                               overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
+                  ),
+                  Text(
                               'Tap to edit profile',
                               style: TextStyle(
                                 fontSize: 12,
@@ -250,30 +250,30 @@ class HomeView extends GetView<HomeController> {
                       Icon(LineIcons.search, 
                         size: 18, 
                         color: Theme.of(context).colorScheme.onSurfaceVariant
-                      ),
+                  ),
                       const SizedBox(width: 8),
-                      Text(
+                  Text(
                         'Search',
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
+            ),
+          ),
             ),
             
             // Main Navigation
-            ListTile(
+          ListTile(
               leading: const Icon(LineIcons.home),
               title: const Text('Home'),
-              selected: controller.selectedFolder.value == null && controller.selectedTag.value == null,
-              onTap: () {
-                controller.clearFilters();
-                Get.back(); // Close drawer
-              },
-            ),
+            selected: controller.selectedFolder.value == null && controller.selectedTag.value == null,
+            onTap: () {
+              controller.clearFilters();
+              Get.back(); // Close drawer
+            },
+          ),
             ListTile(
               leading: const Icon(LineIcons.inbox),
               title: const Text('Inbox'),
@@ -285,7 +285,7 @@ class HomeView extends GetView<HomeController> {
               },
             ),
             
-            const Divider(),
+          const Divider(),
             
             // Private section
             Padding(
@@ -344,11 +344,11 @@ class HomeView extends GetView<HomeController> {
             const Divider(),
             
             // FOLDERS SECTION
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
                   Text(
                     'FOLDERS',
                     style: TextStyle(
@@ -357,41 +357,41 @@ class HomeView extends GetView<HomeController> {
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.add, size: 20),
+                IconButton(
+                  icon: const Icon(Icons.add, size: 20),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
-                    onPressed: () {
-                      Get.back(); // Close drawer
-                      _showCreateFolderDialog(context);
-                    },
-                  ),
-                ],
-              ),
+                  onPressed: () {
+                    Get.back(); // Close drawer
+                    _showCreateFolderDialog(context);
+                  },
+                ),
+              ],
             ),
+          ),
             
             // Folder list
-            Expanded(
-              child: Obx(() {
-                if (controller.folders.isEmpty) {
-                  return const Center(
-                    child: Text('No folders yet'),
-                  );
-                }
-                
-                return ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: controller.folders.length,
-                  itemBuilder: (context, index) {
-                    final folder = controller.folders[index];
-                    return ListTile(
-                      leading: const Icon(Icons.folder),
+          Expanded(
+            child: Obx(() {
+              if (controller.folders.isEmpty) {
+                return const Center(
+                  child: Text('No folders yet'),
+                );
+              }
+              
+              return ListView.builder(
+                shrinkWrap: true,
+                itemCount: controller.folders.length,
+                itemBuilder: (context, index) {
+                  final folder = controller.folders[index];
+                  return ListTile(
+                    leading: const Icon(Icons.folder),
                       title: Text(
                         folder.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      selected: controller.selectedFolder.value?.id == folder.id,
+                    selected: controller.selectedFolder.value?.id == folder.id,
                       trailing: PopupMenuButton(
                         icon: const Icon(Icons.more_horiz),
                         itemBuilder: (context) => [
@@ -417,20 +417,20 @@ class HomeView extends GetView<HomeController> {
                             ),
                           ),
                         ],
-                      ),
-                      onTap: () {
-                        controller.selectFolder(folder);
-                        Get.back(); // Close drawer
-                      },
-                    );
-                  },
-                );
-              }),
-            ),
+                    ),
+                    onTap: () {
+                      controller.selectFolder(folder);
+                      Get.back(); // Close drawer
+                    },
+                  );
+                },
+              );
+            }),
+          ),
             
             // Shared section
-            const Divider(),
-            Padding(
+          const Divider(),
+          Padding(
               padding: const EdgeInsets.only(left: 16.0, top: 8.0, bottom: 4.0),
               child: Text(
                 'SHARED',
@@ -444,7 +444,7 @@ class HomeView extends GetView<HomeController> {
             
             Container(
               height: 80,
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -474,45 +474,45 @@ class HomeView extends GetView<HomeController> {
               children: [
                 Padding(
                   padding: const EdgeInsets.only(left: 8.0, right: 8.0),
-                  child: Row(
+            child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
+              children: [
                       TextButton.icon(
                         icon: const Icon(Icons.add, size: 16),
                         label: const Text('New Tag'),
-                        onPressed: () {
-                          Get.back(); // Close drawer
-                          _showCreateTagDialog(context);
-                        },
-                      ),
-                    ],
-                  ),
+                  onPressed: () {
+                    Get.back(); // Close drawer
+                    _showCreateTagDialog(context);
+                  },
                 ),
+              ],
+            ),
+          ),
                 Obx(() {
-                  if (controller.tags.isEmpty) {
+              if (controller.tags.isEmpty) {
                     return const Padding(
                       padding: EdgeInsets.all(16.0),
-                      child: Text('No tags yet'),
-                    );
-                  }
-                  
-                  return ListView.builder(
-                    shrinkWrap: true,
+                  child: Text('No tags yet'),
+                );
+              }
+              
+              return ListView.builder(
+                shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: controller.tags.length,
-                    itemBuilder: (context, index) {
-                      final tag = controller.tags[index];
-                      return ListTile(
+                itemCount: controller.tags.length,
+                itemBuilder: (context, index) {
+                  final tag = controller.tags[index];
+                  return ListTile(
                         leading: const Icon(Icons.tag, size: 18),
                         title: Text(
                           tag.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        selected: controller.selectedTag.value?.id == tag.id,
-                        trailing: IconButton(
+                    selected: controller.selectedTag.value?.id == tag.id,
+                    trailing: IconButton(
                           icon: const Icon(Icons.more_horiz),
-                          onPressed: () {
+                      onPressed: () {
                             showModalBottomSheet(
                               context: context,
                               builder: (context) => Column(
@@ -531,22 +531,22 @@ class HomeView extends GetView<HomeController> {
                                     title: const Text('Delete'),
                                     onTap: () {
                                       Navigator.pop(context);
-                                      _showDeleteTagDialog(context, tag);
+                        _showDeleteTagDialog(context, tag);
                                     },
                                   ),
                                 ],
                               ),
                             );
-                          },
-                        ),
-                        onTap: () {
-                          controller.selectTag(tag);
-                          Get.back(); // Close drawer
-                        },
-                      );
+                      },
+                    ),
+                    onTap: () {
+                      controller.selectTag(tag);
+                      Get.back(); // Close drawer
                     },
                   );
-                }),
+                },
+              );
+            }),
               ],
             ),
             
@@ -577,8 +577,8 @@ class HomeView extends GetView<HomeController> {
                 Get.snackbar('Coming Soon', 'Trash functionality will be added in future updates',
                   snackPosition: SnackPosition.BOTTOM);
               },
-            ),
-          ],
+          ),
+        ],
         ),
       ),
     );
@@ -624,25 +624,25 @@ class HomeView extends GetView<HomeController> {
   Widget _buildNotesList(BuildContext context) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: controller.notes.length,
-      itemBuilder: (context, index) {
-        final note = controller.notes[index];
+            itemCount: controller.notes.length,
+            itemBuilder: (context, index) {
+              final note = controller.notes[index];
         String content = '';
-        
+    
         // Clean up content for preview
-        try {
+    try {
           final jsonContent = jsonDecode(note.content);
           if (jsonContent is List && jsonContent.isNotEmpty) {
             // Extract text content from Delta format
             for (var op in jsonContent) {
               if (op is Map && op.containsKey('insert')) {
                 content += op['insert'].toString();
-              }
-            }
-          } else {
-            content = "Content preview not available";
           }
-        } catch (e) {
+        }
+      } else {
+            content = "Content preview not available";
+      }
+    } catch (e) {
           // Handle malformed content
           content = note.content
             .replaceAll('[["insert":"', '')
@@ -662,16 +662,16 @@ class HomeView extends GetView<HomeController> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Slidable(
-            endActionPane: ActionPane(
-              motion: const ScrollMotion(),
-              children: [
-                SlidableAction(
+      endActionPane: ActionPane(
+        motion: const ScrollMotion(),
+        children: [
+          SlidableAction(
                   onPressed: (context) => _showMoveToFolderDialog(context, note),
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  icon: Icons.folder,
-                  label: 'Move',
-                ),
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            icon: Icons.folder,
+            label: 'Move',
+          ),
                 if (note.folderId != null)
                   SlidableAction(
                     onPressed: (context) => _removeFromFolder(context, note),
@@ -689,50 +689,50 @@ class HomeView extends GetView<HomeController> {
                 ),
               ],
             ),
-            child: InkWell(
+        child: InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () => controller.openNote(note),
-              child: Padding(
+          child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            note.title,
+                    Expanded(
+                      child: Text(
+                        note.title,
                             style: const TextStyle(
-                              fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                               fontSize: 18,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
                         ),
-                        Text(
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
                           DateFormat('MMM d, yyyy').format(note.updatedAt),
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.secondary,
                             fontSize: 12,
                           ),
-                        ),
-                      ],
                     ),
+                  ],
+                ),
                     if (note.tags.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
-                        children: note.tags.map((tag) => Chip(
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
+                      children: note.tags.map((tag) => Chip(
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
                           label: Text(
                             tag.name,
                             style: const TextStyle(fontSize: 10),
                           ),
                           padding: EdgeInsets.zero,
-                        )).toList(),
-                      ),
+                      )).toList(),
+                    ),
                     ],
                     const SizedBox(height: 8),
                     Text(
@@ -743,12 +743,12 @@ class HomeView extends GetView<HomeController> {
                       ),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+              ],
             ),
           ),
+        ),
+      ),
         );
       },
     );

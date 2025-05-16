@@ -4,15 +4,20 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:typed_data';
 import 'package:get/get.dart';
 import '../../../data/repositories/book_repository.dart';
+import '../../../data/repositories/note_repository.dart';
 import '../../../data/models/book_model.dart';
+import '../../../data/models/note_model.dart';
+import '../../../routes/app_pages.dart';
 import 'package:image_picker/image_picker.dart';
 
 class BookController extends GetxController {
   final BookRepository _bookRepository = Get.find<BookRepository>();
+  final NoteRepository _noteRepository = Get.find<NoteRepository>();
   
   final isLoading = false.obs;
   final isSaving = false.obs;
   final isUploadingCover = false.obs;
+  final isLoadingPages = false.obs;
   final hasError = false.obs;
   final errorMessage = ''.obs;
   
@@ -24,6 +29,12 @@ class BookController extends GetxController {
   final titleController = TextEditingController();
   
   final ImagePicker _imagePicker = ImagePicker();
+  
+  // List of pages with details
+  final RxList<Note> bookPages = <Note>[].obs;
+  
+  // Temporary property to hold deleteNote value for swipe dismiss
+  bool tempDeleteNote = false;
   
   bool get isWeb => kIsWeb;
   
@@ -52,6 +63,9 @@ class BookController extends GetxController {
       
       if (book.value != null) {
         titleController.text = book.value!.title;
+        
+        // Load the pages
+        await loadBookPages();
       } else {
         hasError.value = true;
         errorMessage.value = 'Book not found';
@@ -62,6 +76,24 @@ class BookController extends GetxController {
       print('Error loading book: $e');
     } finally {
       isLoading.value = false;
+    }
+  }
+  
+  Future<void> loadBookPages() async {
+    if (book.value == null || book.value!.pageIds.isEmpty) {
+      bookPages.clear();
+      return;
+    }
+    
+    isLoadingPages.value = true;
+    
+    try {
+      final pages = await _noteRepository.getNotesByIds(book.value!.pageIds);
+      bookPages.value = pages;
+    } catch (e) {
+      print('Error loading book pages: $e');
+    } finally {
+      isLoadingPages.value = false;
     }
   }
   
@@ -375,15 +407,106 @@ class BookController extends GetxController {
       return;
     }
     
-    // Implement page creation here
-    // This will be connected to the existing note functionality
-    print('Creating new page in book: ${book.value!.id}');
+    try {
+      // Create a new note to use as a page
+      final NoteRepository noteRepository = Get.find<NoteRepository>();
+      final newNote = await noteRepository.createNote(
+        title: 'New Page in ${book.value!.title}',
+        content: '{"ops":[{"insert":"\\n"}]}', // Empty quill delta
+      );
+      
+      // Add the note ID to the book's pages
+      final success = await _bookRepository.addPageToBook(book.value!.id, newNote.id);
+      
+      if (success) {
+        // Refresh book data to get updated page list
+        await loadBook(book.value!.id);
+        
+        Get.snackbar(
+          'Success',
+          'New page added to book',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+        
+        // Open the note editor for the new page
+        Get.toNamed(
+          Routes.NOTE_EDITOR,
+          arguments: {
+            'noteId': newNote.id,
+            'isBookPage': true,
+            'bookId': book.value!.id
+          },
+        );
+      } else {
+        throw Exception('Failed to add page to book');
+      }
+    } catch (e) {
+      print('Error creating new page: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to create new page: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+  
+  Future<void> deletePage(String pageId, {bool deleteNote = false}) async {
+    if (book.value == null) return;
     
-    // Placeholder for now - we'll integrate with the note system later
-    Get.snackbar(
-      'Coming Soon',
-      'Page creation functionality will be added soon',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    try {
+      // First remove the page ID from the book
+      final success = await _bookRepository.removePageFromBook(book.value!.id, pageId);
+      
+      if (success) {
+        // Refresh book data to get updated page list
+        await loadBook(book.value!.id);
+        
+        // If requested, also delete the underlying note
+        if (deleteNote) {
+          try {
+            await Get.find<NoteRepository>().deleteNote(id: pageId);
+            Get.snackbar(
+              'Success',
+              'Page removed and deleted',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+            );
+          } catch (e) {
+            print('Error deleting note: $e');
+            Get.snackbar(
+              'Warning',
+              'Page removed from book but note could not be deleted',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.orange,
+              colorText: Colors.white,
+            );
+          }
+        } else {
+          Get.snackbar(
+            'Success',
+            'Page removed from book',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.green,
+            colorText: Colors.white,
+          );
+        }
+      } else {
+        throw Exception('Failed to remove page from book');
+      }
+    } catch (e) {
+      print('Error deleting page: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to delete page: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 } 

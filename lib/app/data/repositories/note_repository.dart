@@ -256,4 +256,30 @@ class NoteRepository {
       callback: onNoteTagChange
     );
   }
+
+  // Get multiple notes by their IDs (for book pages)
+  Future<List<Note>> getNotesByIds(List<String> noteIds) async {
+    if (noteIds.isEmpty) return [];
+    
+    try {
+      final response = await _supabaseService.client
+          .from('notes')
+          .select()
+          .inFilter('id', noteIds)
+          .order('updated_at', ascending: false);
+      
+      final notesList = (response as List).map((data) => Note.fromJson(data)).toList();
+      
+      // Fetch tags for each note
+      for (var i = 0; i < notesList.length; i++) {
+        final tags = await getTagsForNote(notesList[i].id);
+        notesList[i] = notesList[i].copyWith(tags: tags);
+      }
+      
+      return notesList;
+    } catch (e) {
+      print('Error getting notes by ids: $e');
+      return [];
+    }
+  }
 } 

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import '../controllers/book_controller.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../routes/app_pages.dart';
 
 class BookView extends GetView<BookController> {
   const BookView({Key? key}) : super(key: key);
@@ -304,27 +305,229 @@ class BookView extends GetView<BookController> {
   }
   
   Widget _buildPagesList(BuildContext context) {
-    // Placeholder for the pages list
-    // Will be implemented to show pages of the book
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: controller.book.value!.pageIds.length,
-      itemBuilder: (context, index) {
-        return ListTile(
-          leading: const Icon(Icons.description),
-          title: Text('Page ${index + 1}'),
-          onTap: () {
-            // Will implement page opening functionality
-            Get.snackbar(
-              'Coming Soon',
-              'Page viewing functionality will be added soon',
-              snackPosition: SnackPosition.BOTTOM,
-            );
-          },
+    if (controller.book.value == null || controller.book.value!.pageIds.isEmpty) {
+      return const Center(
+        child: Text('No pages yet'),
+      );
+    }
+    
+    return Obx(() {
+      if (controller.isLoadingPages.value) {
+        return const Center(
+          child: CircularProgressIndicator(),
         );
-      },
-    );
+      }
+      
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: controller.book.value!.pageIds.length,
+            itemBuilder: (context, index) {
+              final pageId = controller.book.value!.pageIds[index];
+              
+              // Find the corresponding note for this page
+              final pageNote = controller.bookPages.firstWhereOrNull(
+                (note) => note.id == pageId
+              );
+              
+              return Dismissible(
+                key: Key(pageId),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 16.0),
+                  color: Colors.red,
+                  child: const Icon(
+                    Icons.delete,
+                    color: Colors.white,
+                  ),
+                ),
+                confirmDismiss: (direction) async {
+                  bool deleteNote = false;
+                  
+                  return await showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return StatefulBuilder(
+                        builder: (context, setState) {
+                          return AlertDialog(
+                            title: const Text("Delete Page"),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text("Are you sure you want to delete this page?"),
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Checkbox(
+                                      value: deleteNote,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          deleteNote = value ?? false;
+                                        });
+                                      },
+                                    ),
+                                    const Expanded(
+                                      child: Text(
+                                        "Also delete the note permanently (this cannot be undone)",
+                                        style: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                child: const Text("Cancel"),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  // Store the deleteNote value for onDismissed
+                                  controller.tempDeleteNote = deleteNote;
+                                  Navigator.of(context).pop(true);
+                                },
+                                child: const Text(
+                                  "Delete",
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            ],
+                          );
+                        }
+                      );
+                    },
+                  );
+                },
+                onDismissed: (direction) {
+                  // Use the stored value for deleteNote
+                  controller.deletePage(pageId, deleteNote: controller.tempDeleteNote);
+                },
+                child: Card(
+                  margin: const EdgeInsets.only(bottom: 8.0),
+                  elevation: 2,
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      child: Text('${index + 1}', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
+                    ),
+                    title: Text(pageNote?.title ?? 'Page ${index + 1}'),
+                    subtitle: Text(
+                      pageNote != null 
+                          ? 'Updated: ${_formatDate(pageNote.updatedAt)}'
+                          : 'Tap to open and edit'
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                          onPressed: () async {
+                            bool deleteNote = false;
+                            
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return StatefulBuilder(
+                                  builder: (context, setState) {
+                                    return AlertDialog(
+                                      title: const Text("Delete Page"),
+                                      content: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text("Are you sure you want to delete this page?"),
+                                          const SizedBox(height: 16),
+                                          Row(
+                                            children: [
+                                              Checkbox(
+                                                value: deleteNote,
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    deleteNote = value ?? false;
+                                                  });
+                                                },
+                                              ),
+                                              const Expanded(
+                                                child: Text(
+                                                  "Also delete the note permanently (this cannot be undone)",
+                                                  style: TextStyle(fontSize: 12),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.of(context).pop(false),
+                                          child: const Text("Cancel"),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.of(context).pop(true),
+                                          child: const Text(
+                                            "Delete",
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }
+                                );
+                              },
+                            );
+                            
+                            if (confirm == true) {
+                              controller.deletePage(pageId, deleteNote: deleteNote);
+                            }
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.arrow_forward_ios, size: 16),
+                      ],
+                    ),
+                    onTap: () {
+                      // Open the note editor and refresh when returning
+                      Get.toNamed(
+                        Routes.NOTE_EDITOR,
+                        arguments: {
+                          'noteId': pageId,
+                          'isBookPage': true,
+                          'bookId': controller.book.value!.id
+                        },
+                      );
+                      
+                      // Add a refresh callback for when navigation returns
+                      Future.delayed(const Duration(milliseconds: 100), () {
+                        Get.find<BookController>().loadBookPages();
+                      });
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add),
+            label: const Text('Add New Page'),
+            onPressed: controller.createNewPage,
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 48),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+  
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
   
   void _showDeleteBookDialog(BuildContext context) {

@@ -225,4 +225,46 @@ class BookRepository {
       return null;
     }
   }
+  
+  // Add a new page to a book
+  Future<bool> addPageToBook(String bookId, String pageId) async {
+    final User? currentUser = _supabaseService.client.auth.currentUser;
+    if (currentUser == null) return false;
+    
+    try {
+      // First get the current book
+      final book = await getBook(bookId);
+      if (book == null) return false;
+      
+      // Add the page ID
+      book.addPage(pageId);
+      
+      // Update the book
+      return await updateBook(book);
+    } catch (e) {
+      print('Error adding page to book: $e');
+      return false;
+    }
+  }
+  
+  // Remove a page from a book
+  Future<bool> removePageFromBook(String bookId, String pageId) async {
+    final User? currentUser = _supabaseService.client.auth.currentUser;
+    if (currentUser == null) return false;
+    
+    try {
+      // First get the current book
+      final book = await getBook(bookId);
+      if (book == null) return false;
+      
+      // Remove the page ID
+      book.removePage(pageId);
+      
+      // Update the book
+      return await updateBook(book);
+    } catch (e) {
+      print('Error removing page from book: $e');
+      return false;
+    }
+  }
 } 

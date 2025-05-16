@@ -79,12 +79,12 @@ class UserRepository {
       } catch (e) {
         // Profile doesn't exist, create it with default values
         await _supabaseService.client.from('profiles').insert({
-          'id': currentUser.id,
+      'id': currentUser.id,
           'full_name': fullName ?? '',
           'avatar_url': avatarUrl ?? '',
           'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        });
+      'updated_at': DateTime.now().toIso8601String(),
+    });
         return currentUser;
       }
 
@@ -167,11 +167,11 @@ class UserRepository {
     if (currentUser == null) return null;
 
     try {
-      final response = await _supabaseService.client
-          .from('profiles')
-          .select('*')
-          .eq('id', currentUser.id)
-          .single();
+    final response = await _supabaseService.client
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single();
 
       return Profile.fromJson(response);
     } catch (e) {

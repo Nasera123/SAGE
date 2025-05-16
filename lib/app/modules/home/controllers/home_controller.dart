@@ -125,23 +125,23 @@ class HomeController extends GetxController {
       
       // Create reusable callback functions for channel events
       void handleNoteChange(PostgresChangePayload payload) {
-        print('Note change detected: ${payload.eventType}');
-        loadNotes();
+          print('Note change detected: ${payload.eventType}');
+          loadNotes();
       }
       
       void handleFolderChange(PostgresChangePayload payload) {
-        print('Folder change detected: ${payload.eventType}');
-        loadFolders();
+          print('Folder change detected: ${payload.eventType}');
+          loadFolders();
       }
       
       void handleTagChange(PostgresChangePayload payload) {
-        print('Tag change detected: ${payload.eventType}');
-        loadTags();
+          print('Tag change detected: ${payload.eventType}');
+          loadTags();
       }
       
       void handleNoteTagChange(PostgresChangePayload payload) {
-        print('Note tag change detected: ${payload.eventType}');
-        loadNotes();
+          print('Note tag change detected: ${payload.eventType}');
+          loadNotes();
       }
       
       try {

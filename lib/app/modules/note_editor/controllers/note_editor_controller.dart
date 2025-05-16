@@ -20,6 +20,10 @@ class NoteEditorController extends GetxController {
   final hasError = false.obs;
   final errorMessage = ''.obs;
   
+  // Book-related properties
+  final isBookPage = false.obs;
+  final bookId = ''.obs;
+  
   // Note data with better reactivity
   final Rx<Note> _note = Rx<Note>(Note.empty());
   Note get note => _note.value;
@@ -34,7 +38,8 @@ class NoteEditorController extends GetxController {
     return _quillController!;
   }
   
-  late TextEditingController titleController;
+  // Initialize titleController to avoid late init error
+  final titleController = TextEditingController();
   
   // Add a dedicated FocusNode for the editor
   final titleFocusNode = FocusNode();
@@ -72,18 +77,39 @@ class NoteEditorController extends GetxController {
   void onInit() {
     super.onInit();
     
-    // Get note from arguments
-    if (Get.arguments is Note) {
-      note = Get.arguments as Note;
-      titleController = TextEditingController(text: note.title);
-      loadTags();
-      setupRealtimeSubscriptions();
-      
-      // Start tracking collaboration
-      _trackCollaboration();
+    // Initialize book-related properties
+    if (Get.arguments != null) {
+      if (Get.arguments is Map) {
+        final args = Get.arguments as Map;
+        
+        // Check if it's a book page
+        if (args.containsKey('isBookPage') && args['isBookPage'] == true) {
+          isBookPage.value = true;
+          if (args.containsKey('bookId')) {
+            bookId.value = args['bookId'] as String;
+          }
+        }
+        
+        // Check if we have a noteId
+        if (args.containsKey('noteId')) {
+          final noteId = args['noteId'] as String;
+          loadNote(noteId);
+        }
+      } else if (Get.arguments is Note) {
+        note = Get.arguments as Note;
+        titleController.text = note.title;
+        loadTags();
+        setupRealtimeSubscriptions();
+        
+        // Start tracking collaboration
+        _trackCollaboration();
+      } else {
+        hasError.value = true;
+        errorMessage.value = 'Invalid note data';
+      }
     } else {
       hasError.value = true;
-      errorMessage.value = 'Invalid note data';
+      errorMessage.value = 'No note data provided';
     }
     
     // Initialize the editor
@@ -547,63 +573,50 @@ class NoteEditorController extends GetxController {
     if (isSaving.value) return;
     
     isSaving.value = true;
-    if (isAutosave) {
-      isAutosaving.value = true;
-    }
+    isAutosaving.value = isAutosave;
+    isDirty.value = false;
     
     try {
-      // Ensure proper Delta format and prevent corrupted content
-      final quillDelta = quillController.document.toDelta();
-      final content = jsonEncode(quillDelta.toJson());
+      // Update note with current content from the editor
+      final noteContent = jsonEncode(_quillController!.document.toDelta().toJson());
+      final noteTitle = titleController.text.trim();
       
-      final title = titleController.text.trim();
-      
-      if (title.isEmpty) {
-        Get.snackbar(
-          'Error',
-          'Title cannot be empty',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-        isSaving.value = false;
-        isAutosaving.value = false;
-        return;
-      }
-      
-      // Update the note
+      // Create an updated note
       final updatedNote = note.copyWith(
-        title: title,
-        content: content,
+        title: noteTitle,
+        content: noteContent,
+        updatedAt: DateTime.now(),
       );
       
-      // Save to repository
-      final savedNote = await _noteRepository.updateNote(note: updatedNote);
+      // Save the note
+      note = await _noteRepository.updateNote(note: updatedNote);
       
-      // Update local note
-      note = savedNote;
-      
-      // Mark as not dirty
-      isDirty.value = false;
-      
+      // Only show the saved message if it's not an autosave
       if (!isAutosave) {
         Get.snackbar(
-          'Success',
+          'Saved',
           'Note saved successfully',
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: Colors.green,
           colorText: Colors.white,
+          duration: const Duration(seconds: 2),
         );
       }
     } catch (e) {
       print('Error saving note: $e');
-      Get.snackbar(
-        'Error',
-        'Failed to save note: ${e.toString()}',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      isDirty.value = true;
+      
+      // Only show the error message if it's not an autosave
+      if (!isAutosave) {
+        Get.snackbar(
+          'Error',
+          'Failed to save note: ${e.toString()}',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 3),
+        );
+      }
     } finally {
       isSaving.value = false;
       isAutosaving.value = false;
@@ -765,5 +778,26 @@ class NoteEditorController extends GetxController {
         ],
       ),
     );
+  }
+  
+  Future<void> loadNote(String id) async {
+    isLoading.value = true;
+    
+    try {
+      final loadedNote = await _noteRepository.getNote(id);
+      note = loadedNote;
+      titleController.text = note.title;
+      loadTags();
+      setupRealtimeSubscriptions();
+      
+      // Start tracking collaboration
+      _trackCollaboration();
+    } catch (e) {
+      hasError.value = true;
+      errorMessage.value = 'Error loading note: ${e.toString()}';
+      print('Error loading note: $e');
+    } finally {
+      isLoading.value = false;
+    }
   }
 } 

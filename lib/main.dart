@@ -10,7 +10,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-    // Initialize Supabase
+  // Initialize Supabase
     print('Initializing Supabase...');
     final service = await SupabaseService.initialize();
     print('Supabase initialized successfully: ${service.hashCode}');

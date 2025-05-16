@@ -130,7 +130,7 @@ class ProfileView extends GetView<ProfileController> {
                                 color: Theme.of(context).colorScheme.onPrimary,
                                 size: 20,
                               ),
-                            ),
+                    ),
                           ),
                         ),
                       ],
