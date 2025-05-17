@@ -267,4 +267,61 @@ class BookRepository {
       return false;
     }
   }
+  
+  // Subscribe to book changes for the current user
+  RealtimeChannel subscribeBookChanges({Function(PostgresChangePayload)? onBookChange}) {
+    final userId = _supabaseService.currentUser!.id;
+    
+    // Create a channel for user's books
+    final channel = _supabaseService.client.channel('books:${userId}');
+    
+    // Add postgres changes listener
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'books',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'user_id',
+        value: userId,
+      ),
+      callback: onBookChange ?? (payload) {
+        print('Book change detected: ${payload.eventType}');
+      },
+    );
+    
+    // Subscribe to the channel
+    channel.subscribe();
+    
+    return channel;
+  }
+  
+  // Subscribe to specific book changes
+  RealtimeChannel subscribeSpecificBookChanges({
+    required String bookId,
+    Function(PostgresChangePayload)? onBookChange
+  }) {
+    // Create a channel specifically for this book
+    final channel = _supabaseService.client.channel('book:$bookId');
+    
+    // Add postgres changes listener
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'books',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'id',
+        value: bookId,
+      ),
+      callback: onBookChange ?? (payload) {
+        print('Book change detected for book: $bookId - ${payload.eventType}');
+      },
+    );
+    
+    // Subscribe to the channel
+    channel.subscribe();
+    
+    return channel;
+  }
 } 

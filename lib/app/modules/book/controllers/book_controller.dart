@@ -8,11 +8,14 @@ import '../../../data/repositories/note_repository.dart';
 import '../../../data/models/book_model.dart';
 import '../../../data/models/note_model.dart';
 import '../../../routes/app_pages.dart';
+import '../../../data/services/supabase_service.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class BookController extends GetxController {
   final BookRepository _bookRepository = Get.find<BookRepository>();
   final NoteRepository _noteRepository = Get.find<NoteRepository>();
+  final SupabaseService _supabaseService = Get.find<SupabaseService>();
   
   final isLoading = false.obs;
   final isSaving = false.obs;
@@ -36,6 +39,11 @@ class BookController extends GetxController {
   // Temporary property to hold deleteNote value for swipe dismiss
   bool tempDeleteNote = false;
   
+  // For real-time updates
+  RealtimeChannel? _bookChannel;
+  DateTime? _lastExternalUpdate;
+  final realtimeActivity = ''.obs;
+  
   bool get isWeb => kIsWeb;
   
   @override
@@ -51,6 +59,7 @@ class BookController extends GetxController {
   @override
   void onClose() {
     titleController.dispose();
+    _bookChannel?.unsubscribe();
     super.onClose();
   }
   
@@ -66,6 +75,9 @@ class BookController extends GetxController {
         
         // Load the pages
         await loadBookPages();
+        
+        // Setup real-time subscription
+        setupRealtimeSubscription();
       } else {
         hasError.value = true;
         errorMessage.value = 'Book not found';
@@ -76,6 +88,67 @@ class BookController extends GetxController {
       print('Error loading book: $e');
     } finally {
       isLoading.value = false;
+    }
+  }
+  
+  void setupRealtimeSubscription() {
+    try {
+      final userId = _supabaseService.currentUser?.id;
+      if (userId == null || book.value == null) {
+        print('Cannot setup realtime: No current user or book');
+        return;
+      }
+      
+      // Subscribe to specific book changes
+      _bookChannel = _bookRepository.subscribeSpecificBookChanges(
+        bookId: book.value!.id,
+        onBookChange: (payload) {
+          // Don't react to our own changes
+          if (isSaving.value) return;
+          
+          // Set timestamp for tracking external updates
+          _lastExternalUpdate = DateTime.now();
+          
+          print('Book update detected from another client');
+          realtimeActivity.value = 'Book updated from another device at ${DateTime.now().toLocal().toIso8601String().substring(11, 19)}';
+          
+          // Schedule refresh after a short delay to avoid conflicts
+          Future.delayed(Duration(milliseconds: 100), () {
+            refreshBook();
+          });
+        }
+      );
+    } catch (e) {
+      print('Error setting up realtime subscription: $e');
+    }
+  }
+  
+  Future<void> refreshBook() async {
+    try {
+      final updatedBook = await _bookRepository.getBook(book.value!.id);
+      
+      if (updatedBook != null) {
+        book.value = updatedBook;
+        
+        // Only update title if it changed and we're not editing
+        if (updatedBook.title != titleController.text && !isSaving.value) {
+          titleController.text = updatedBook.title;
+        }
+        
+        // Refresh page list
+        await loadBookPages();
+        
+        Get.snackbar(
+          'Book Updated',
+          'Book was updated from another device',
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: Colors.green.withOpacity(0.7),
+          colorText: Colors.white,
+          duration: Duration(seconds: 2),
+        );
+      }
+    } catch (e) {
+      print('Error refreshing book: $e');
     }
   }
   
@@ -121,6 +194,9 @@ class BookController extends GetxController {
         if (newBook != null) {
           book.value = newBook;
           
+          // Setup real-time subscriptions immediately for the new book
+          setupRealtimeSubscription();
+          
           // Upload cover if selected
           if (selectedCoverImageFile.value != null) {
             await uploadCoverImage();
@@ -148,6 +224,9 @@ class BookController extends GetxController {
           // Upload cover if selected
           if (selectedCoverImageFile.value != null) {
             await uploadCoverImage();
+          } else {
+            // Trigger refreshBook to ensure UI is updated
+            await refreshBook();
           }
           
           Get.snackbar(
@@ -419,7 +498,15 @@ class BookController extends GetxController {
       final success = await _bookRepository.addPageToBook(book.value!.id, newNote.id);
       
       if (success) {
-        // Refresh book data to get updated page list
+        // Add the page to local pages list immediately for better UX
+        bookPages.add(newNote);
+        
+        // Update the local book model to include the new page ID
+        if (book.value != null) {
+          book.value!.addPage(newNote.id);
+        }
+        
+        // Refresh book data to ensure everything is up to date
         await loadBook(book.value!.id);
         
         Get.snackbar(
@@ -462,8 +549,9 @@ class BookController extends GetxController {
       final success = await _bookRepository.removePageFromBook(book.value!.id, pageId);
       
       if (success) {
-        // Refresh book data to get updated page list
-        await loadBook(book.value!.id);
+        // Update local state immediately for better UX
+        book.value!.removePage(pageId);
+        bookPages.removeWhere((page) => page.id == pageId);
         
         // If requested, also delete the underlying note
         if (deleteNote) {
@@ -495,6 +583,9 @@ class BookController extends GetxController {
             colorText: Colors.white,
           );
         }
+        
+        // Refresh book data to ensure everything is in sync
+        await loadBook(book.value!.id);
       } else {
         throw Exception('Failed to remove page from book');
       }
