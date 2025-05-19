@@ -19,6 +19,8 @@ import '../modules/book/bindings/book_binding.dart';
 import '../modules/book/views/book_view.dart';
 import '../modules/book/bindings/book_list_binding.dart';
 import '../modules/book/views/book_list_view.dart';
+import '../modules/trash/bindings/trash_binding.dart';
+import '../modules/trash/views/trash_view.dart';
 
 part 'app_routes.dart';
 
@@ -81,6 +83,11 @@ class AppPages {
       name: _Paths.BOOK_LIST,
       page: () => const BookListView(),
       binding: BookListBinding(),
+    ),
+    GetPage(
+      name: _Paths.TRASH,
+      page: () => const TrashView(),
+      binding: TrashBinding(),
     ),
   ];
 }

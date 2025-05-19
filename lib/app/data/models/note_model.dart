@@ -9,6 +9,9 @@ class Note {
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<tag_model.Tag> tags;
+  final bool isDeleted;
+  final DateTime? deletedAt;
+  final String? originalBookId;
 
   Note({
     required this.id,
@@ -19,6 +22,9 @@ class Note {
     required this.createdAt,
     required this.updatedAt,
     this.tags = const [],
+    this.isDeleted = false,
+    this.deletedAt,
+    this.originalBookId,
   });
 
   // Factory for an empty note
@@ -32,6 +38,9 @@ class Note {
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       tags: const [],
+      isDeleted: false,
+      deletedAt: null,
+      originalBookId: null,
     );
   }
 
@@ -45,6 +54,9 @@ class Note {
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
       tags: tags,
+      isDeleted: json['is_deleted'] ?? false,
+      deletedAt: json['deleted_at'] != null ? DateTime.parse(json['deleted_at']) : null,
+      originalBookId: json['original_book_id'],
     );
   }
 
@@ -57,6 +69,9 @@ class Note {
       'content': content,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      'is_deleted': isDeleted,
+      'deleted_at': deletedAt?.toIso8601String(),
+      'original_book_id': originalBookId,
     };
   }
 
@@ -67,6 +82,8 @@ class Note {
       'folder_id': folderId,
       'title': title,
       'content': content,
+      'is_deleted': isDeleted,
+      'deleted_at': deletedAt?.toIso8601String(),
     };
   }
 
@@ -79,6 +96,9 @@ class Note {
     DateTime? createdAt,
     DateTime? updatedAt,
     List<tag_model.Tag>? tags,
+    bool? isDeleted,
+    DateTime? deletedAt,
+    String? originalBookId,
   }) {
     return Note(
       id: id ?? this.id,
@@ -89,6 +109,9 @@ class Note {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       tags: tags ?? this.tags,
+      isDeleted: isDeleted ?? this.isDeleted,
+      deletedAt: deletedAt ?? this.deletedAt,
+      originalBookId: originalBookId ?? this.originalBookId,
     );
   }
 }

@@ -14,16 +14,22 @@ class BookRepository {
   SupabaseClient get client => _supabaseService.client;
   
   // Get all books for current user
-  Future<List<Book>> getBooks() async {
+  Future<List<Book>> getBooks({bool includeDeleted = false}) async {
     final User? currentUser = _supabaseService.client.auth.currentUser;
     if (currentUser == null) return [];
     
     try {
-      final response = await _supabaseService.client
+      var query = _supabaseService.client
           .from('books')
           .select('*')
-          .eq('user_id', currentUser.id)
-          .order('updated_at', ascending: false);
+          .eq('user_id', currentUser.id);
+          
+      // Exclude deleted books by default
+      if (!includeDeleted) {
+        query = query.eq('is_deleted', false);
+      }
+      
+      final response = await query.order('updated_at', ascending: false);
       
       return response.map<Book>((book) => Book.fromJson(book)).toList();
     } catch (e) {
@@ -32,18 +38,44 @@ class BookRepository {
     }
   }
   
-  // Get single book by ID
-  Future<Book?> getBook(String id) async {
+  // Get all trashed books
+  Future<List<Book>> getTrashedBooks() async {
     final User? currentUser = _supabaseService.client.auth.currentUser;
-    if (currentUser == null) return null;
+    if (currentUser == null) return [];
     
     try {
       final response = await _supabaseService.client
           .from('books')
           .select('*')
-          .eq('id', id)
           .eq('user_id', currentUser.id)
-          .single();
+          .eq('is_deleted', true)
+          .order('deleted_at', ascending: false);
+      
+      return response.map<Book>((book) => Book.fromJson(book)).toList();
+    } catch (e) {
+      print('Error getting trashed books: $e');
+      return [];
+    }
+  }
+  
+  // Get single book by ID
+  Future<Book?> getBook(String id, {bool includeDeleted = false}) async {
+    final User? currentUser = _supabaseService.client.auth.currentUser;
+    if (currentUser == null) return null;
+    
+    try {
+      var query = _supabaseService.client
+          .from('books')
+          .select('*')
+          .eq('id', id)
+          .eq('user_id', currentUser.id);
+          
+      // Only check for deletion status if requested
+      if (!includeDeleted) {
+        query = query.eq('is_deleted', false);
+      }
+      
+      final response = await query.single();
       
       return Book.fromJson(response);
     } catch (e) {
@@ -64,11 +96,15 @@ class BookRepository {
         userId: currentUser.id,
       );
       
-      await _supabaseService.client
+      // Insert dan langsung select hasilnya untuk mendapatkan timestamp dari server
+      final response = await _supabaseService.client
           .from('books')
-          .insert(book.toJson());
+          .insert(book.toJson())
+          .select()
+          .single();
       
-      return book;
+      // Return book dari hasil create dengan timestamp yang akurat
+      return Book.fromJson(response);
     } catch (e) {
       print('Error creating book: $e');
       return null;
@@ -81,11 +117,24 @@ class BookRepository {
     if (currentUser == null) return false;
     
     try {
-      await _supabaseService.client
+      // Perbarui timestamp di sisi klien untuk dipastikan terupdate
+      book.updatedAt = DateTime.now();
+
+      final response = await _supabaseService.client
           .from('books')
           .update(book.toJson())
           .eq('id', book.id)
           .eq('user_id', currentUser.id);
+      
+      // Broadcast event update ke semua klien
+      try {
+        // Trigger manual broadcast untuk memastikan realtime update
+        await _supabaseService.client.rpc('notify_book_update', 
+          params: {'book_id': book.id});
+      } catch (e) {
+        // Jika fungsi RPC belum ada, jangan gagalkan seluruh operasi
+        print('notify_book_update RPC tidak ditemukan: $e');
+      }
       
       return true;
     } catch (e) {
@@ -94,8 +143,31 @@ class BookRepository {
     }
   }
   
-  // Delete a book
+  // Delete a book (move to trash)
   Future<bool> deleteBook(String id) async {
+    final User? currentUser = _supabaseService.client.auth.currentUser;
+    if (currentUser == null) return false;
+    
+    try {
+      // Instead of deleting, mark as deleted
+      await _supabaseService.client
+          .from('books')
+          .update({
+            'is_deleted': true,
+            'deleted_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', id)
+          .eq('user_id', currentUser.id);
+      
+      return true;
+    } catch (e) {
+      print('Error moving book to trash: $e');
+      return false;
+    }
+  }
+  
+  // Permanently delete a book
+  Future<bool> permanentlyDeleteBook(String id) async {
     final User? currentUser = _supabaseService.client.auth.currentUser;
     if (currentUser == null) return false;
     
@@ -108,7 +180,29 @@ class BookRepository {
       
       return true;
     } catch (e) {
-      print('Error deleting book: $e');
+      print('Error permanently deleting book: $e');
+      return false;
+    }
+  }
+  
+  // Restore a book from trash
+  Future<bool> restoreBook(String id) async {
+    final User? currentUser = _supabaseService.client.auth.currentUser;
+    if (currentUser == null) return false;
+    
+    try {
+      await _supabaseService.client
+          .from('books')
+          .update({
+            'is_deleted': false,
+            'deleted_at': null,
+          })
+          .eq('id', id)
+          .eq('user_id', currentUser.id);
+      
+      return true;
+    } catch (e) {
+      print('Error restoring book: $e');
       return false;
     }
   }
@@ -239,7 +333,7 @@ class BookRepository {
       // Add the page ID
       book.addPage(pageId);
       
-      // Update the book
+      // Update the book and return a flag whether update was successful
       return await updateBook(book);
     } catch (e) {
       print('Error adding page to book: $e');

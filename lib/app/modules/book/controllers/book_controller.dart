@@ -11,6 +11,7 @@ import '../../../routes/app_pages.dart';
 import '../../../data/services/supabase_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 
 class BookController extends GetxController {
   final BookRepository _bookRepository = Get.find<BookRepository>();
@@ -23,6 +24,9 @@ class BookController extends GetxController {
   final isLoadingPages = false.obs;
   final hasError = false.obs;
   final errorMessage = ''.obs;
+  
+  // Flag untuk menandakan buku perlu direfresh
+  final needsRefresh = false.obs;
   
   final book = Rxn<Book>();
   final Rxn<File> selectedCoverImage = Rxn<File>();
@@ -41,25 +45,42 @@ class BookController extends GetxController {
   
   // For real-time updates
   RealtimeChannel? _bookChannel;
+  RealtimeChannel? _pagesChannel;
   DateTime? _lastExternalUpdate;
   final realtimeActivity = ''.obs;
+  
+  // Timer untuk periodic refresh
+  Timer? _periodicRefreshTimer;
   
   bool get isWeb => kIsWeb;
   
   @override
   void onInit() {
     super.onInit();
+    print('BookController: onInit');
     
     // Check if we're editing an existing book
     if (Get.arguments != null && Get.arguments['bookId'] != null) {
       loadBook(Get.arguments['bookId']);
     }
+    
+    // Set up listener untuk needsRefresh flag
+    ever(needsRefresh, (bool val) {
+      if (val && book.value != null) {
+        print('Auto-refreshing book pages due to needsRefresh flag');
+        loadBookPages();
+        // Reset flag setelah refresh
+        needsRefresh.value = false;
+      }
+    });
   }
   
   @override
   void onClose() {
     titleController.dispose();
     _bookChannel?.unsubscribe();
+    _pagesChannel?.unsubscribe();
+    _periodicRefreshTimer?.cancel();
     super.onClose();
   }
   
@@ -99,6 +120,10 @@ class BookController extends GetxController {
         return;
       }
       
+      // Batalkan subscription lama jika ada
+      _bookChannel?.unsubscribe();
+      _pagesChannel?.unsubscribe();
+      
       // Subscribe to specific book changes
       _bookChannel = _bookRepository.subscribeSpecificBookChanges(
         bookId: book.value!.id,
@@ -109,7 +134,7 @@ class BookController extends GetxController {
           // Set timestamp for tracking external updates
           _lastExternalUpdate = DateTime.now();
           
-          print('Book update detected from another client');
+          print('Book update detected from another client: ${payload.eventType}');
           realtimeActivity.value = 'Book updated from another device at ${DateTime.now().toLocal().toIso8601String().substring(11, 19)}';
           
           // Schedule refresh after a short delay to avoid conflicts
@@ -118,8 +143,75 @@ class BookController extends GetxController {
           });
         }
       );
+
+      // Subscribe to note changes that might affect book pages
+      _pagesChannel = _noteRepository.subscribeNoteChanges(
+        onNoteChange: (payload) {
+          // Only process events for notes that are pages in this book
+          if (book.value != null && book.value!.pageIds.isNotEmpty) {
+            final changedNoteId = payload.newRecord?['id'] ?? payload.oldRecord?['id'];
+            
+            if (changedNoteId != null && book.value!.pageIds.contains(changedNoteId)) {
+              print('Detected change to a note that is a page in this book: $changedNoteId');
+              realtimeActivity.value = 'Page updated at ${DateTime.now().toLocal().toIso8601String().substring(11, 19)}';
+              
+              // Only refresh if we're not currently saving
+              if (!isSaving.value) {
+                // If the note was deleted, we might need to update pageIds
+                if (payload.eventType == 'UPDATE' && 
+                    payload.newRecord != null && 
+                    payload.newRecord!['is_deleted'] == true) {
+                  print('A page was moved to trash, refreshing book data');
+                }
+                
+                // Load pages after a short delay to avoid conflicts
+                Future.delayed(Duration(milliseconds: 300), () {
+                  loadBookPages();
+                });
+              }
+            }
+          }
+        }
+      );
+      
+      // Mulai periodic refresh timer (setiap 30 detik)
+      _periodicRefreshTimer?.cancel();
+      _periodicRefreshTimer = Timer.periodic(Duration(seconds: 30), (_) {
+        if (!isSaving.value && !isLoading.value && !isLoadingPages.value) {
+          // Silent refresh (tanpa notifikasi) untuk memastikan data selalu segar
+          _silentRefresh();
+        }
+      });
     } catch (e) {
       print('Error setting up realtime subscription: $e');
+    }
+  }
+  
+  // Silent refresh tanpa notifikasi
+  Future<void> _silentRefresh() async {
+    try {
+      final updatedBook = await _bookRepository.getBook(book.value!.id);
+      
+      if (updatedBook != null) {
+        // Bandingkan jumlah pageIds untuk mengetahui apakah ada perubahan
+        final oldPageCount = book.value?.pageIds.length ?? 0;
+        final newPageCount = updatedBook.pageIds.length;
+        
+        book.value = updatedBook;
+        
+        // Only update title if changed and we're not editing
+        if (updatedBook.title != titleController.text && !isSaving.value) {
+          titleController.text = updatedBook.title;
+        }
+        
+        // Refresh halaman jika jumlah berubah
+        if (oldPageCount != newPageCount) {
+          print('Page count changed: $oldPageCount -> $newPageCount, refreshing pages');
+          await loadBookPages();
+        }
+      }
+    } catch (e) {
+      print('Error during silent refresh: $e');
     }
   }
   
@@ -128,7 +220,12 @@ class BookController extends GetxController {
       final updatedBook = await _bookRepository.getBook(book.value!.id);
       
       if (updatedBook != null) {
+        // Cek perubahan jumlah halaman
+        final oldPageCount = book.value?.pageIds.length ?? 0;
+        final newPageCount = updatedBook.pageIds.length;
+        
         book.value = updatedBook;
+        book.refresh(); // Memastikan UI diperbarui
         
         // Only update title if it changed and we're not editing
         if (updatedBook.title != titleController.text && !isSaving.value) {
@@ -138,14 +235,26 @@ class BookController extends GetxController {
         // Refresh page list
         await loadBookPages();
         
-        Get.snackbar(
-          'Book Updated',
-          'Book was updated from another device',
-          snackPosition: SnackPosition.TOP,
-          backgroundColor: Colors.green.withOpacity(0.7),
-          colorText: Colors.white,
-          duration: Duration(seconds: 2),
-        );
+        // Tampilkan notifikasi jika jumlah halaman berubah
+        if (oldPageCount != newPageCount) {
+          Get.snackbar(
+            'Book Updated',
+            'Book pages changed: $oldPageCount -> $newPageCount',
+            snackPosition: SnackPosition.TOP,
+            backgroundColor: Colors.green.withOpacity(0.7),
+            colorText: Colors.white,
+            duration: Duration(seconds: 2),
+          );
+        } else {
+          Get.snackbar(
+            'Book Updated',
+            'Book data has been refreshed',
+            snackPosition: SnackPosition.TOP,
+            backgroundColor: Colors.green.withOpacity(0.7),
+            colorText: Colors.white,
+            duration: Duration(seconds: 2),
+          );
+        }
       }
     } catch (e) {
       print('Error refreshing book: $e');
@@ -153,18 +262,73 @@ class BookController extends GetxController {
   }
   
   Future<void> loadBookPages() async {
-    if (book.value == null || book.value!.pageIds.isEmpty) {
+    if (book.value == null) {
+      print('loadBookPages: No book loaded');
+      bookPages.clear();
+      return;
+    }
+    
+    // Jika tidak ada pageIds, hapus bookPages dan return
+    if (book.value!.pageIds.isEmpty) {
+      print('loadBookPages: Book has no pages');
       bookPages.clear();
       return;
     }
     
     isLoadingPages.value = true;
+    print('Loading book pages for book: ${book.value!.id}');
+    print('Page IDs: ${book.value!.pageIds}');
     
     try {
+      // Selalu ambil data halaman terbaru untuk memastikan judul dan konten terbaru
+      print('Fetching all pages to ensure latest titles and content');
       final pages = await _noteRepository.getNotesByIds(book.value!.pageIds);
+      print('Fetched ${pages.length} pages from ${book.value!.pageIds.length} page IDs');
+      
+      // Periksa jika ada halaman yang hilang
+      if (pages.length < book.value!.pageIds.length) {
+        print('Some pages were not found: Expected ${book.value!.pageIds.length}, got ${pages.length}');
+        
+        // Identifikasi halaman yang hilang
+        final fetchedIds = pages.map((page) => page.id).toList();
+        final missingIds = book.value!.pageIds.where((id) => !fetchedIds.contains(id)).toList();
+        print('Missing page IDs: $missingIds');
+        
+        // Coba bersihkan pageIds dari halaman yang tidak ada
+        final Book updatedBook = book.value!;
+        for (final missingId in missingIds) {
+          updatedBook.removePage(missingId);
+        }
+        
+        // Update buku jika ada perubahan pada pageIds
+        if (missingIds.isNotEmpty) {
+          print('Updating book to remove missing pages');
+          await _bookRepository.updateBook(updatedBook);
+        }
+      }
+      
+      // Tambahkan logging untuk setiap halaman
+      for (var i = 0; i < pages.length; i++) {
+        final page = pages[i];
+        print('Page ${i+1}: ID=${page.id}, Title=${page.title}, Content length=${page.content.length}');
+      }
+      
+      // Update bookPages setelah semua pengecekan
       bookPages.value = pages;
+      bookPages.refresh(); // Force UI refresh
+      
+      // Refresh book data untuk memastikan sinkronisasi
+      book.refresh();
     } catch (e) {
       print('Error loading book pages: $e');
+      Get.snackbar(
+        'Error',
+        'Failed to load book pages. Please try again.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 3),
+      );
     } finally {
       isLoadingPages.value = false;
     }
@@ -450,23 +614,23 @@ class BookController extends GetxController {
       final success = await _bookRepository.deleteBook(book.value!.id);
       
       if (success) {
-        Get.back(result: {'deleted': true});
+        Get.back(result: {'deleted': true, 'bookId': book.value!.id});
         
         Get.snackbar(
           'Success',
-          'Book deleted successfully',
+          'Book moved to trash',
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: Colors.green,
           colorText: Colors.white,
         );
       } else {
-        throw Exception('Failed to delete book');
+        throw Exception('Failed to move book to trash');
       }
     } catch (e) {
-      print('Error deleting book: $e');
+      print('Error moving book to trash: $e');
       Get.snackbar(
         'Error',
-        'Failed to delete book: ${e.toString()}',
+        'Failed to move book to trash: ${e.toString()}',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
@@ -494,20 +658,19 @@ class BookController extends GetxController {
         content: '{"ops":[{"insert":"\\n"}]}', // Empty quill delta
       );
       
-      // Add the note ID to the book's pages
-      final success = await _bookRepository.addPageToBook(book.value!.id, newNote.id);
+      // Update the local book model first to include the new page ID
+      if (book.value != null) {
+        book.value!.addPage(newNote.id);
+        book.value!.updatedAt = DateTime.now(); // Force update timestamp untuk memastikan perubahan terdeteksi
+        book.refresh(); // Trigger UI update
+      }
+      
+      // Add the note ID to the book's pages in database
+      final success = await _bookRepository.updateBook(book.value!);
       
       if (success) {
         // Add the page to local pages list immediately for better UX
         bookPages.add(newNote);
-        
-        // Update the local book model to include the new page ID
-        if (book.value != null) {
-          book.value!.addPage(newNote.id);
-        }
-        
-        // Refresh book data to ensure everything is up to date
-        await loadBook(book.value!.id);
         
         Get.snackbar(
           'Success',
@@ -525,7 +688,10 @@ class BookController extends GetxController {
             'isBookPage': true,
             'bookId': book.value!.id
           },
-        );
+        )?.then((_) {
+          // Refresh pages when coming back from editor
+          loadBookPages();
+        });
       } else {
         throw Exception('Failed to add page to book');
       }
@@ -553,22 +719,27 @@ class BookController extends GetxController {
         book.value!.removePage(pageId);
         bookPages.removeWhere((page) => page.id == pageId);
         
-        // If requested, also delete the underlying note
+        // If requested, also delete the underlying note (move to trash)
         if (deleteNote) {
           try {
-            await Get.find<NoteRepository>().deleteNote(id: pageId);
+            // Use deleteNote which now moves to trash instead of permanently deleting
+            // Pass the book ID so we can restore the note to this book later
+            await Get.find<NoteRepository>().deleteNote(
+              id: pageId, 
+              originalBookId: book.value!.id
+            );
             Get.snackbar(
               'Success',
-              'Page removed and deleted',
+              'Page removed and moved to trash',
               snackPosition: SnackPosition.BOTTOM,
               backgroundColor: Colors.green,
               colorText: Colors.white,
             );
           } catch (e) {
-            print('Error deleting note: $e');
+            print('Error moving note to trash: $e');
             Get.snackbar(
               'Warning',
-              'Page removed from book but note could not be deleted',
+              'Page removed from book but note could not be moved to trash',
               snackPosition: SnackPosition.BOTTOM,
               backgroundColor: Colors.orange,
               colorText: Colors.white,

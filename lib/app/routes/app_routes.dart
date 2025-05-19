@@ -14,6 +14,7 @@ abstract class Routes {
   static const PROFILE = _Paths.PROFILE;
   static const BOOK = _Paths.BOOK;
   static const BOOK_LIST = _Paths.BOOK_LIST;
+  static const TRASH = _Paths.TRASH;
 }
 
 abstract class _Paths {
@@ -29,4 +30,5 @@ abstract class _Paths {
   static const PROFILE = '/profile';
   static const BOOK = '/book';
   static const BOOK_LIST = '/book_list';
+  static const TRASH = '/trash';
 }

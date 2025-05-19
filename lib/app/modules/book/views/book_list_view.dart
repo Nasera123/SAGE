@@ -3,15 +3,50 @@ import 'package:get/get.dart';
 import '../controllers/book_list_controller.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../routes/app_pages.dart';
+import 'package:flutter/services.dart';
 
 class BookListView extends GetView<BookListController> {
   const BookListView({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    // Setup focus detector for app lifecycle changes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Initial refresh
+      controller.refreshData();
+      
+      // Setup a focus detector to check when app is resumed from background
+      SystemChannels.lifecycle.setMessageHandler((msg) async {
+        print('BookListView lifecycle event: $msg');
+        if (msg == AppLifecycleState.resumed.toString() && 
+            ModalRoute.of(context)?.isCurrent == true) {
+          print('BookListView: app resumed and is current route, refreshing data');
+          controller.refreshData();
+        }
+        return null;
+      });
+      
+      // Setup a focus detector for when this page becomes visible
+      // (e.g., when returning from another screen within the app)
+      FocusManager.instance.primaryFocus?.addListener(() {
+        if (ModalRoute.of(context)?.isCurrent == true) {
+          print('BookListView: regained focus, refreshing data');
+          controller.refreshData();
+        }
+      });
+    });
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Books'),
+        actions: [
+          // Tambahkan tombol refresh manual
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => controller.refreshData(),
+            tooltip: 'Refresh',
+          ),
+        ],
       ),
       body: Obx(() {
         if (controller.isLoading.value) {
@@ -149,13 +184,20 @@ class BookListView extends GetView<BookListController> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            '${book.pageIds.length} ${book.pageIds.length == 1 ? 'page' : 'pages'}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
+                          Obx(() {
+                            final pageCount = controller.books.firstWhere(
+                              (b) => b.id == book.id, 
+                              orElse: () => book
+                            ).pageIds.length;
+                            
+                            return Text(
+                              '$pageCount ${pageCount == 1 ? 'page' : 'pages'}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            );
+                          }),
                         ],
                       ),
                     ),

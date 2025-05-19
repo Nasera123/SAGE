@@ -10,31 +10,61 @@ class BookView extends GetView<BookController> {
 
   @override
   Widget build(BuildContext context) {
+    // Auto-refresh saat halaman ditampilkan
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (controller.book.value != null) {
+        // Cek apakah perlu refresh (misalnya setelah edit halaman)
+        if (controller.needsRefresh.value) {
+          print('BookView: needsRefresh flag detected, triggering loadBookPages');
+          controller.loadBookPages();
+          controller.needsRefresh.value = false;
+        } else {
+          // Refresh ringan saat tampilan pertama kali muncul
+          controller.refreshBook();
+        }
+      }
+    });
+    
     return Scaffold(
       appBar: AppBar(
         title: Obx(() => Text(controller.book.value?.title ?? 'New Book')),
         actions: [
           IconButton(
-            icon: const Icon(Icons.check),
-            onPressed: controller.saveBook,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: () {
+              controller.refreshBook();
+              controller.loadBookPages();
+              Get.snackbar(
+                'Refreshed',
+                'Book data refreshed',
+                snackPosition: SnackPosition.BOTTOM,
+                duration: const Duration(seconds: 2),
+              );
+            },
           ),
-          PopupMenuButton(
-            icon: const Icon(Icons.more_vert),
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: controller.saveBook,
+            tooltip: 'Save Book',
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'delete') {
+                _showDeleteBookDialog(context);
+              }
+            },
             itemBuilder: (context) => [
-              if (controller.book.value != null)
-                PopupMenuItem(
-                  child: const Row(
-                    children: [
-                      Icon(Icons.delete, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Delete Book', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                  onTap: () => Future.delayed(
-                    const Duration(milliseconds: 100),
-                    () => _showDeleteBookDialog(context),
-                  ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Delete Book'),
+                  ],
                 ),
+              ),
             ],
           ),
         ],
@@ -72,6 +102,34 @@ class BookView extends GetView<BookController> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Realtime activity indicator
+              Obx(() {
+                if (controller.realtimeActivity.isNotEmpty) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.withOpacity(0.5)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.sync, color: Colors.green, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            controller.realtimeActivity.value,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
+              
               // Book cover and image selection
               Center(
                 child: Column(
@@ -305,13 +363,32 @@ class BookView extends GetView<BookController> {
   }
   
   Widget _buildPagesList(BuildContext context) {
-    if (controller.book.value == null || controller.book.value!.pageIds.isEmpty) {
+    if (controller.book.value == null) {
       return const Center(
-        child: Text('No pages yet'),
+        child: Text('No book loaded'),
       );
     }
     
     return Obx(() {
+      // Cek ulang jumlah halaman
+      final pageIds = controller.book.value?.pageIds ?? [];
+      
+      if (pageIds.isEmpty) {
+        return Center(
+          child: Column(
+            children: [
+              const Text('No pages yet'),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text('Add New Page'),
+                onPressed: controller.createNewPage,
+              ),
+            ],
+          ),
+        );
+      }
+      
       if (controller.isLoadingPages.value) {
         return const Center(
           child: CircularProgressIndicator(),
@@ -324,14 +401,30 @@ class BookView extends GetView<BookController> {
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: controller.book.value!.pageIds.length,
+            itemCount: pageIds.length,
             itemBuilder: (context, index) {
-              final pageId = controller.book.value!.pageIds[index];
+              final pageId = pageIds[index];
               
               // Find the corresponding note for this page
               final pageNote = controller.bookPages.firstWhereOrNull(
                 (note) => note.id == pageId
               );
+              
+              // Jika halaman tidak ditemukan, menampilkan placeholder
+              if (pageNote == null) {
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                    child: Text('${index + 1}', style: TextStyle(color: Theme.of(context).colorScheme.onPrimary)),
+                  ),
+                  title: const Text('Loading page...', style: TextStyle(fontStyle: FontStyle.italic)),
+                  trailing: const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                );
+              }
               
               return Dismissible(
                 key: Key(pageId),
@@ -373,7 +466,7 @@ class BookView extends GetView<BookController> {
                                     ),
                                     const Expanded(
                                       child: Text(
-                                        "Also delete the note permanently (this cannot be undone)",
+                                        "Also move the note to trash (can be restored later)",
                                         style: TextStyle(fontSize: 12),
                                       ),
                                     ),
@@ -455,7 +548,7 @@ class BookView extends GetView<BookController> {
                                               ),
                                               const Expanded(
                                                 child: Text(
-                                                  "Also delete the note permanently (this cannot be undone)",
+                                                  "Also move the note to trash (can be restored later)",
                                                   style: TextStyle(fontSize: 12),
                                                 ),
                                               ),
@@ -491,9 +584,9 @@ class BookView extends GetView<BookController> {
                         const Icon(Icons.arrow_forward_ios, size: 16),
                       ],
                     ),
-                    onTap: () {
+                    onTap: () async {
                       // Open the note editor and refresh when returning
-                      Get.toNamed(
+                      final result = await Get.toNamed(
                         Routes.NOTE_EDITOR,
                         arguments: {
                           'noteId': pageId,
@@ -502,10 +595,8 @@ class BookView extends GetView<BookController> {
                         },
                       );
                       
-                      // Add a refresh callback for when navigation returns
-                      Future.delayed(const Duration(milliseconds: 100), () {
-                        Get.find<BookController>().loadBookPages();
-                      });
+                      // Pastikan selalu refresh halaman setelah kembali dari editor
+                      controller.loadBookPages();
                     },
                   ),
                 ),
@@ -535,9 +626,7 @@ class BookView extends GetView<BookController> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Book'),
-        content: Text(
-          'Are you sure you want to delete "${controller.book.value!.title}"? This action cannot be undone.',
-        ),
+                content: Text(          'Are you sure you want to move "${controller.book.value!.title}" to trash? You can restore it later from the trash.',        ),
         actions: [
           TextButton(
             onPressed: () => Get.back(),

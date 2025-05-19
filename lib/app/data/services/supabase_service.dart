@@ -216,4 +216,20 @@ class SupabaseService extends GetxService {
       rethrow;
     }
   }
+
+  // Test realtime subscription
+  Future<void> testRealtimeSubscription() async {
+    try {
+      final channels = client.getChannels();
+      
+      print('Active Supabase channels: ${channels.length}');
+      for (var channel in channels) {
+        print('Channel: ${channel.topic}');
+      }
+      
+      return;
+    } catch (e) {
+      print('Error testing realtime subscription: $e');
+    }
+  }
 } 

@@ -7,14 +7,18 @@ class NoteEditorView extends GetView<NoteEditorController> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        // Save changes if needed
-        if (controller.isDirty.value) {
-          await controller.saveNote();
+        try {
+          // Simpan perubahan dengan cepat dan langsung kembali
+          print('Back button pressed - saving and returning');
+          controller.saveAndClose();
+        } catch (e) {
+          print('Error on back navigation: $e');
+          // Tetap kembali meskipun ada error
+          Get.back();
         }
         
-        // Return the updated note directly to the calling screen
-        Get.back(result: controller.note); // Pass the actual updated note
-        return false; // We handle the back navigation manually
+        // Return true untuk mengizinkan navigasi kembali default
+        return true;
       },
       child: Scaffold(
       appBar: AppBar(
@@ -24,14 +28,10 @@ class NoteEditorView extends GetView<NoteEditorController> {
         ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () async {
-              // Save changes if needed
-              if (controller.isDirty.value) {
-                await controller.saveNote();
-              }
-              
-              // Tell GetX to refresh the notes list when returning to home
-              Get.back(result: controller.note);
+            onPressed: () {
+              // Simpan perubahan dengan cepat dan langsung kembali
+              print('Back button in AppBar pressed - saving and returning');
+              controller.saveAndClose();
             },
           ),
         actions: [
@@ -271,6 +271,22 @@ class NoteEditorView extends GetView<NoteEditorController> {
                   controller: controller.quillController,
                       focusNode: controller.editorFocusNode,
                   ),
+                ),
+              ),
+            ),
+            
+            // Tombol simpan yang jelas
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.save),
+                  label: const Text('Simpan Perubahan'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12.0),
+                  ),
+                  onPressed: () => controller.saveNote(),
                 ),
               ),
             ),

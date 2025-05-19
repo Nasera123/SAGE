@@ -559,6 +559,16 @@ class HomeView extends GetView<HomeController> {
                         Get.toNamed(Routes.SETTINGS);
                       },
                     ),
+                    
+                    // Trash
+                    ListTile(
+                      leading: const Icon(Icons.delete_outline),
+                      title: const Text('Trash'),
+                      onTap: () {
+                        Get.back();
+                        Get.toNamed(Routes.TRASH);
+                      },
+                    ),
                   ],
                 ),
               ),

@@ -10,6 +10,7 @@ import '../../../data/repositories/note_repository.dart';
 import '../../../data/repositories/tag_repository.dart';
 import '../../../data/services/supabase_service.dart';
 import '../../../modules/home/controllers/home_controller.dart';
+import '../../../modules/book/controllers/book_controller.dart';
 
 class NoteEditorController extends GetxController {
   final NoteRepository _noteRepository = Get.find<NoteRepository>();
@@ -76,33 +77,41 @@ class NoteEditorController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    print('NoteEditorController: onInit');
     
     // Initialize book-related properties
     if (Get.arguments != null) {
       if (Get.arguments is Map) {
         final args = Get.arguments as Map;
+        print('Arguments received: $args');
         
         // Check if it's a book page
         if (args.containsKey('isBookPage') && args['isBookPage'] == true) {
           isBookPage.value = true;
           if (args.containsKey('bookId')) {
             bookId.value = args['bookId'] as String;
+            print('This is a book page with bookId: ${bookId.value}');
           }
         }
         
         // Check if we have a noteId
         if (args.containsKey('noteId')) {
           final noteId = args['noteId'] as String;
+          print('Loading note with ID from arguments: $noteId');
           loadNote(noteId);
+          // Editor will be initialized in loadNote
+          return;
         }
       } else if (Get.arguments is Note) {
+        print('Note object received directly');
         note = Get.arguments as Note;
         titleController.text = note.title;
         loadTags();
         setupRealtimeSubscriptions();
-        
-        // Start tracking collaboration
         _trackCollaboration();
+        // Inisialisasi editor setelah data dimuat
+        initializeEditor();
+        return;
       } else {
         hasError.value = true;
         errorMessage.value = 'Invalid note data';
@@ -112,8 +121,11 @@ class NoteEditorController extends GetxController {
       errorMessage.value = 'No note data provided';
     }
     
-    // Initialize the editor
-    initializeEditor();
+    // Hanya inisialisasi editor jika belum diinisialisasi di flow di atas
+    if (_quillController == null) {
+      print('Fallback initialization of editor');
+      initializeEditor();
+    }
   }
   
   @override
@@ -417,6 +429,8 @@ class NoteEditorController extends GetxController {
     
     try {
       if (_quillController != null) {
+        // Pastikan untuk menghapus listener sebelum dispose untuk mencegah memory leak
+        _quillController!.removeListener(_onDocumentChange);
         _quillController!.dispose();
       }
       
@@ -424,50 +438,61 @@ class NoteEditorController extends GetxController {
       Document document;
       
       // Check for empty or invalid content
-      if (note.content.isEmpty || note.content == '{"ops":[]}') {
+      if (note.content.isEmpty || note.content == '{"ops":[]}' || note.content == '{}') {
         // For new or empty notes, create a clean document
         document = Document();
+        print('Creating empty document');
       } else {
         try {
+          print('Parsing note content: ${note.content.length} chars');
+          
           // First try to parse as a proper JSON object
-          final dynamic contentJson = jsonDecode(note.content.replaceAll('\u0000', '')
-                                                         .replaceAll('\u001A', ''));
+          dynamic contentJson;
+          try {
+            // Bersihkan konten dari karakter tidak valid
+            String cleanContent = note.content.replaceAll('\u0000', '')
+                                             .replaceAll('\u001A', '');
+            contentJson = jsonDecode(cleanContent);
+            print('JSON successfully parsed');
+          } catch (jsonError) {
+            print('Error parsing JSON: $jsonError');
+            // Jika parsing gagal, buat dokumen kosong
+            document = Document();
+            throw jsonError; // Throw untuk masuk ke blok catch
+          }
           
           // Check if it's a Delta object or needs conversion
           if (contentJson is List && contentJson.isNotEmpty && contentJson[0] is Map) {
             // Properly formatted Delta JSON
-        document = Document.fromJson(contentJson);
+            print('Content is List format Delta');
+            try {
+              document = Document.fromJson(contentJson);
+              print('Document created from List JSON successfully');
+            } catch (docError) {
+              print('Error creating document from List JSON: $docError');
+              document = Document();
+            }
           } else if (contentJson is Map && contentJson.containsKey('ops')) {
             // Formatted as {ops: [...]} structure
-            document = Document.fromJson(contentJson['ops']);
+            print('Content is Map format with ops key');
+            try {
+              document = Document.fromJson(contentJson['ops']);
+              print('Document created from Map[ops] JSON successfully');
+            } catch (docError) {
+              print('Error creating document from Map[ops]: $docError');
+              document = Document();
+            }
           } else {
             // Not a valid Delta - create a new document with the parsed content as string
+            print('Content is not a valid Delta format, converting to string');
             final String safeContent = contentJson.toString();
             document = Document()..insert(0, safeContent);
           }
         } catch (parseError) {
-          print('JSON parse error: $parseError');
-          
-          // Try to sanitize the content to create valid JSON
-          String sanitizedContent = note.content
-            .replaceAll('\u0000', '') // Remove null characters
-            .replaceAll('\u001A', '') // Remove SUB characters
-            .replaceAll(RegExp(r'[^\x20-\x7E\s]'), '') // Remove non-printable ASCII
-            .replaceAll('[["insert":"', '')
-            .replaceAll('"]]', '')
-            .replaceAll('\\n', '\n')
-            .replaceAll('\\r', '\r')
-            .replaceAll('\\t', '\t')
-            .replaceAll('\\\"', '\"')
-            .replaceAll('\\\\', '\\');
-          
-          // If all else fails, create a document with the sanitized content or an empty document
-          try {
-            document = Document.fromJson([{"insert": sanitizedContent}]);
-      } catch (e) {
-            // Last resort - empty document instead of placeholder text
-            document = Document();
-          }
+          print('Error processing content: $parseError');
+          // Fallback to empty document
+          print('Creating a fallback empty document');
+          document = Document();
         }
       }
       
@@ -478,6 +503,7 @@ class NoteEditorController extends GetxController {
       
       // Listen for changes to mark as dirty and trigger debounced save
       _quillController!.addListener(_onDocumentChange);
+      print('Added document change listener to QuillController');
       
       // Listen for focus changes to ensure proper focus behavior
       editorFocusNode.addListener(_onEditorFocusChange);
@@ -488,9 +514,9 @@ class NoteEditorController extends GetxController {
       
       isLoading.value = false;
     } catch (e) {
+      print('Fatal error initializing editor: $e');
       hasError.value = true;
       errorMessage.value = 'Error initializing editor: ${e.toString()}';
-      print('Error initializing editor: $e');
     }
   }
   
@@ -498,6 +524,7 @@ class NoteEditorController extends GetxController {
     // Mark document as dirty
     if (!isDirty.value) {
       isDirty.value = true;
+      print('Document marked as dirty - changes detected');
     }
     
     // Only trigger debounced save if we didn't just receive an external update
@@ -510,6 +537,7 @@ class NoteEditorController extends GetxController {
       _debounceTimer?.cancel();
       _debounceTimer = Timer(debounceInterval, () {
         if (isDirty.value && !isSaving.value) {
+          print('Debounce timer triggered autosave');
           saveNote(isAutosave: true);
         }
       });
@@ -534,6 +562,15 @@ class NoteEditorController extends GetxController {
     _autosaveTimer?.cancel();
     _autosaveTimer = Timer.periodic(autosaveInterval, (_) {
       if (isDirty.value && !isSaving.value) {
+        print('Periodic autosave triggered');
+        saveNote(isAutosave: true);
+      }
+    });
+    
+    // Juga pastikan konten tersimpan saat editor kehilangan fokus
+    editorFocusNode.addListener(() {
+      if (!editorFocusNode.hasFocus && isDirty.value && !isSaving.value) {
+        print('Editor lost focus - triggering save');
         saveNote(isAutosave: true);
       }
     });
@@ -570,7 +607,10 @@ class NoteEditorController extends GetxController {
   }
   
   Future<void> saveNote({bool isAutosave = false}) async {
-    if (isSaving.value) return;
+    if (isSaving.value) {
+      print('Save skipped - another save in progress');
+      return;
+    }
     
     isSaving.value = true;
     isAutosaving.value = isAutosave;
@@ -578,8 +618,31 @@ class NoteEditorController extends GetxController {
     
     try {
       // Update note with current content from the editor
-      final noteContent = jsonEncode(_quillController!.document.toDelta().toJson());
-      final noteTitle = titleController.text.trim();
+      String noteContent;
+      try {
+        // Pastikan QuillController sudah diinisialisasi
+        if (_quillController == null) {
+          print('QuillController is null, initializing');
+          initializeEditor();
+        }
+        
+        // Encode content to JSON
+        noteContent = jsonEncode(_quillController!.document.toDelta().toJson());
+        print('Content encoded to JSON successfully');
+      } catch (e) {
+        print('Error encoding editor content: $e');
+        // Fallback to empty content
+        noteContent = '{"ops":[{"insert":"\\n"}]}';
+        print('Using fallback empty content');
+      }
+      
+      final noteTitle = titleController.text.trim().isEmpty ? 
+          'Untitled Note' : titleController.text.trim();
+      
+      // Tambahkan log debugging untuk memastikan konten tersimpan
+      print('Saving note: ${note.id}');
+      print('Title: $noteTitle');
+      print('Content length: ${noteContent.length}');
       
       // Create an updated note
       final updatedNote = note.copyWith(
@@ -589,7 +652,9 @@ class NoteEditorController extends GetxController {
       );
       
       // Save the note
+      print('Sending update request to repository');
       note = await _noteRepository.updateNote(note: updatedNote);
+      print('Note saved successfully with ID: ${note.id}');
       
       // Only show the saved message if it's not an autosave
       if (!isAutosave) {
@@ -616,6 +681,17 @@ class NoteEditorController extends GetxController {
           colorText: Colors.white,
           duration: const Duration(seconds: 3),
         );
+      }
+      
+      // Retry saving if it's not an autosave
+      if (!isAutosave && !isSaving.value) {
+        print('Scheduling retry save in 3 seconds');
+        Future.delayed(Duration(seconds: 3), () {
+          if (isDirty.value && !isSaving.value) {
+            print('Retrying save operation');
+            saveNote(isAutosave: true);
+          }
+        });
       }
     } finally {
       isSaving.value = false;
@@ -715,11 +791,39 @@ class NoteEditorController extends GetxController {
   }
   
   Future<void> saveAndClose() async {
-    if (isDirty.value) {
-      await saveNote();
+    print('saveAndClose called');
+    
+    // Simpan perubahan (jika ada) secara cepat tanpa delay yang panjang
+    try {
+      if (!isSaving.value) {
+        print('Saving content before closing');
+        
+        // Simpan note
+        await saveNote(isAutosave: true); // Gunakan isAutosave agar tidak muncul snackbar
+        print('Note saved before closing');
+      } else {
+        print('Skipping save because another save operation is in progress');
+      }
+    } catch (e) {
+      print('Error saving note before closing: $e');
     }
     
-    // Return the updated note directly to the calling screen
+    // Jika ini adalah halaman buku, siapkan untuk refresh nanti
+    if (isBookPage.value && bookId.value.isNotEmpty) {
+      try {
+        // Set flag di BookController (jika ada) untuk refresh halaman nanti
+        if (Get.isRegistered<BookController>()) {
+          print('Notifying BookController to refresh pages');
+          final bookController = Get.find<BookController>();
+          bookController.needsRefresh.value = true;
+        }
+      } catch (e) {
+        print('Error notifying book controller: $e');
+      }
+    }
+    
+    // Segera kembali ke halaman sebelumnya
+    print('Returning to previous screen immediately');
     Get.back(result: note);
   }
   
@@ -782,20 +886,47 @@ class NoteEditorController extends GetxController {
   
   Future<void> loadNote(String id) async {
     isLoading.value = true;
+    print('Loading note with ID: $id');
     
     try {
+      // Pastikan kita menunggu penyimpanan sebelumnya selesai
+      if (isSaving.value) {
+        print('Waiting for ongoing save to complete before loading');
+        await Future.delayed(Duration(seconds: 1));
+        isSaving.value = false;
+      }
+      
+      // Bersihkan controller yang ada jika ada
+      if (_quillController != null) {
+        _quillController!.removeListener(_onDocumentChange);
+        _quillController!.dispose();
+        _quillController = null;
+      }
+      
+      print('Fetching note data from repository');
       final loadedNote = await _noteRepository.getNote(id);
+      
+      // Log detail note yang diambil
+      print('Note loaded: ${loadedNote.id}');
+      print('Title: ${loadedNote.title}');
+      print('Content length: ${loadedNote.content.length}');
+      
+      // Set note dan data terkait
       note = loadedNote;
       titleController.text = note.title;
+      
+      // Load tags, setup subscriptions, and track collaboration
       loadTags();
       setupRealtimeSubscriptions();
-      
-      // Start tracking collaboration
       _trackCollaboration();
+      
+      // Inisialisasi editor setelah data dimuat
+      initializeEditor();
+      
     } catch (e) {
+      print('Error loading note: $e');
       hasError.value = true;
       errorMessage.value = 'Error loading note: ${e.toString()}';
-      print('Error loading note: $e');
     } finally {
       isLoading.value = false;
     }

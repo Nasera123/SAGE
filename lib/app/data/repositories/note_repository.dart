@@ -7,7 +7,7 @@ import 'package:get/get.dart';
 class NoteRepository {
   final SupabaseService _supabaseService = Get.find<SupabaseService>();
 
-  Future<List<Note>> getNotes({String? folderId}) async {
+  Future<List<Note>> getNotes({String? folderId, bool includeDeleted = false}) async {
     try {
       var query = _supabaseService.client
           .from('notes')
@@ -17,6 +17,11 @@ class NoteRepository {
         query = query.eq('folder_id', folderId);
       } else {
         query = query.eq('user_id', _supabaseService.currentUser!.id);
+      }
+      
+      // Exclude deleted notes by default
+      if (!includeDeleted) {
+        query = query.eq('is_deleted', false);
       }
 
       final response = await query.order('updated_at', ascending: false);
@@ -35,7 +40,32 @@ class NoteRepository {
     }
   }
 
-  Future<List<Note>> getNotesByTag(String tagId) async {
+  // Get all trashed notes
+  Future<List<Note>> getTrashedNotes() async {
+    try {
+      final response = await _supabaseService.client
+          .from('notes')
+          .select()
+          .eq('user_id', _supabaseService.currentUser!.id)
+          .eq('is_deleted', true)
+          .order('deleted_at', ascending: false);
+
+      final notesList = (response as List).map((data) => Note.fromJson(data)).toList();
+
+      // Fetch tags for each note
+      for (var i = 0; i < notesList.length; i++) {
+        final tags = await getTagsForNote(notesList[i].id);
+        notesList[i] = notesList[i].copyWith(tags: tags);
+      }
+
+      return notesList;
+    } catch (e) {
+      print('Error getting trashed notes: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<Note>> getNotesByTag(String tagId, {bool includeDeleted = false}) async {
     try {
       final response = await _supabaseService.client
           .from('note_tags')
@@ -48,12 +78,18 @@ class NoteRepository {
         return [];
       }
 
-      final notesResponse = await _supabaseService.client
+      var query = _supabaseService.client
           .from('notes')
           .select()
           .eq('user_id', _supabaseService.currentUser!.id)
-          .inFilter('id', noteIds)
-          .order('updated_at', ascending: false);
+          .inFilter('id', noteIds);
+          
+      // Exclude deleted notes by default
+      if (!includeDeleted) {
+        query = query.eq('is_deleted', false);
+      }
+      
+      final notesResponse = await query.order('updated_at', ascending: false);
 
       final notesList = (notesResponse as List).map((data) => Note.fromJson(data)).toList();
 
@@ -70,13 +106,19 @@ class NoteRepository {
     }
   }
 
-  Future<Note> getNote(String id) async {
+  Future<Note> getNote(String id, {bool includeDeleted = false}) async {
     try {
-      final response = await _supabaseService.client
+      var query = _supabaseService.client
           .from('notes')
           .select()
-          .eq('id', id)
-          .single();
+          .eq('id', id);
+      
+      // Only check for deletion status if requested
+      if (!includeDeleted) {
+        query = query.eq('is_deleted', false);
+      }
+
+      final response = await query.single();
 
       final note = Note.fromJson(response);
       final tags = await getTagsForNote(id);
@@ -124,6 +166,10 @@ class NoteRepository {
         'content': note.content,
         'folder_id': note.folderId,
       };
+      
+      print('Updating note in database: ${note.id}');
+      print('Note title: ${note.title}');
+      print('Content length: ${note.content.length}');
 
       final response = await _supabaseService.client
           .from('notes')
@@ -132,6 +178,7 @@ class NoteRepository {
           .select()
           .single();
 
+      print('Note update successful');
       final updatedNote = Note.fromJson(response);
       final tags = await getTagsForNote(updatedNote.id);
 
@@ -142,11 +189,46 @@ class NoteRepository {
     }
   }
 
-  Future<void> deleteNote({required String id}) async {
+  Future<void> deleteNote({required String id, String? originalBookId}) async {
+    try {
+      // Instead of deleting, mark as deleted
+      await _supabaseService.client
+          .from('notes')
+          .update({
+            'is_deleted': true,
+            'deleted_at': DateTime.now().toIso8601String(),
+            'original_book_id': originalBookId, // Store the book ID if provided
+          })
+          .eq('id', id);
+    } catch (e) {
+      print('Error moving note to trash: $e');
+      rethrow;
+    }
+  }
+
+  // Permanently delete a note
+  Future<void> permanentlyDeleteNote({required String id}) async {
     try {
       await _supabaseService.client.from('notes').delete().eq('id', id);
     } catch (e) {
-      print('Error deleting note: $e');
+      print('Error permanently deleting note: $e');
+      rethrow;
+    }
+  }
+
+  // Restore a note from trash
+  Future<void> restoreNote({required String id}) async {
+    try {
+      await _supabaseService.client
+          .from('notes')
+          .update({
+            'is_deleted': false,
+            'deleted_at': null,
+            'original_book_id': null, // Clear the original book ID as it's no longer needed
+          })
+          .eq('id', id);
+    } catch (e) {
+      print('Error restoring note: $e');
       rethrow;
     }
   }
@@ -258,15 +340,21 @@ class NoteRepository {
   }
 
   // Get multiple notes by their IDs (for book pages)
-  Future<List<Note>> getNotesByIds(List<String> noteIds) async {
+  Future<List<Note>> getNotesByIds(List<String> noteIds, {bool includeDeleted = false}) async {
     if (noteIds.isEmpty) return [];
     
     try {
-      final response = await _supabaseService.client
+      var query = _supabaseService.client
           .from('notes')
           .select()
-          .inFilter('id', noteIds)
-          .order('updated_at', ascending: false);
+          .inFilter('id', noteIds);
+          
+      // Exclude deleted notes by default
+      if (!includeDeleted) {
+        query = query.eq('is_deleted', false);
+      }
+      
+      final response = await query.order('updated_at', ascending: false);
       
       final notesList = (response as List).map((data) => Note.fromJson(data)).toList();
       

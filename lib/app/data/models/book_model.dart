@@ -8,6 +8,8 @@ class Book {
   DateTime updatedAt;
   final String userId;
   List<String> pageIds; // IDs of pages in this book
+  bool isDeleted;
+  DateTime? deletedAt;
   
   Book({
     String? id,
@@ -17,6 +19,8 @@ class Book {
     DateTime? updatedAt,
     required this.userId,
     List<String>? pageIds,
+    this.isDeleted = false,
+    this.deletedAt,
   }) : 
     id = id ?? const Uuid().v4(),
     createdAt = createdAt ?? DateTime.now(),
@@ -32,6 +36,8 @@ class Book {
       'updated_at': updatedAt.toIso8601String(),
       'user_id': userId,
       'page_ids': pageIds,
+      'is_deleted': isDeleted,
+      'deleted_at': deletedAt?.toIso8601String(),
     };
   }
   
@@ -46,6 +52,8 @@ class Book {
       pageIds: json['page_ids'] != null 
         ? List<String>.from(json['page_ids'])
         : [],
+      isDeleted: json['is_deleted'] ?? false,
+      deletedAt: json['deleted_at'] != null ? DateTime.parse(json['deleted_at']) : null,
     );
   }
   
@@ -65,6 +73,18 @@ class Book {
   
   void removePage(String pageId) {
     pageIds.remove(pageId);
+    updatedAt = DateTime.now();
+  }
+  
+  void moveToTrash() {
+    isDeleted = true;
+    deletedAt = DateTime.now();
+    updatedAt = DateTime.now();
+  }
+  
+  void restore() {
+    isDeleted = false;
+    deletedAt = null;
     updatedAt = DateTime.now();
   }
 } 
