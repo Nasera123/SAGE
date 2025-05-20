@@ -1,6 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:get/get.dart';
 import '../constants.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:path/path.dart' as path_util;
+import 'package:uuid/uuid.dart';
 
 class SupabaseService extends GetxService {
   late final SupabaseClient _client;
@@ -39,6 +43,53 @@ class SupabaseService extends GetxService {
     } catch (e) {
       print('Error initializing Supabase: $e');
       rethrow;
+    }
+  }
+
+  // Storage methods
+  Future<String> uploadImage(Uint8List bytes, {String? fileName}) async {
+    try {
+      if (currentUser == null) {
+        throw Exception('User not authenticated');
+      }
+      
+      final userId = currentUser!.id;
+      fileName = fileName ?? '${const Uuid().v4()}.jpg';
+      final storagePath = 'images/$userId/$fileName';
+      
+      // Upload image to storage
+      await _client.storage
+        .from('note_images')
+        .uploadBinary(storagePath, bytes);
+      
+      // Get public URL
+      final imageUrl = _client.storage
+        .from('note_images')
+        .getPublicUrl(storagePath);
+      
+      print('Image uploaded successfully: $imageUrl');
+      return imageUrl;
+    } catch (e) {
+      print('Error uploading image: $e');
+      rethrow;
+    }
+  }
+  
+  // Create the image bucket if it doesn't exist
+  Future<void> createImageBucketIfNotExists() async {
+    try {
+      final buckets = await _client.storage.listBuckets();
+      final bucketExists = buckets.any((bucket) => bucket.name == 'note_images');
+      
+      if (!bucketExists) {
+        await _client.storage.createBucket(
+          'note_images', 
+          const BucketOptions(public: true),
+        );
+        print('Created note_images bucket');
+      }
+    } catch (e) {
+      print('Error checking/creating bucket: $e');
     }
   }
 

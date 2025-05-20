@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../data/models/note_model.dart';
 import '../../../data/models/tag_model.dart' as tag_model;
@@ -16,10 +18,12 @@ class NoteEditorController extends GetxController {
   final NoteRepository _noteRepository = Get.find<NoteRepository>();
   final TagRepository _tagRepository = Get.find<TagRepository>();
   final SupabaseService _supabaseService = Get.find<SupabaseService>();
+  final ImagePicker _imagePicker = ImagePicker();
   
   final isLoading = true.obs;
   final hasError = false.obs;
   final errorMessage = ''.obs;
+  final isUploadingImage = false.obs;
   
   // Book-related properties
   final isBookPage = false.obs;
@@ -501,6 +505,9 @@ class NoteEditorController extends GetxController {
         selection: const TextSelection.collapsed(offset: 0)
       );
       
+      // Set editor to read-only mode (false by default)
+      _quillController!.readOnly = false;
+      
       // Listen for changes to mark as dirty and trigger debounced save
       _quillController!.addListener(_onDocumentChange);
       print('Added document change listener to QuillController');
@@ -929,6 +936,135 @@ class NoteEditorController extends GetxController {
       errorMessage.value = 'Error loading note: ${e.toString()}';
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  // Image handling functions
+  Future<void> pickAndUploadImage() async {
+    try {
+      final pickedImage = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+      
+      if (pickedImage == null) return;
+      
+      isUploadingImage.value = true;
+      Get.snackbar(
+        'Upload',
+        'Mempersiapkan upload gambar...',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2),
+      );
+      
+      // Read image bytes
+      final bytes = await pickedImage.readAsBytes();
+      
+      // Dapatkan user ID untuk path penyimpanan
+      final userId = _supabaseService.currentUser!.id;
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${pickedImage.name ?? 'image.jpg'}';
+      
+      // Use the dedicated note_images bucket
+      const bucketName = 'note_images';
+      
+      // Simplified storage path
+      final storagePath = '$userId/$fileName';
+      
+      print('Uploading file to $bucketName/$storagePath');
+      
+      // Upload file ke bucket
+      await _supabaseService.client.storage
+        .from(bucketName)
+        .uploadBinary(storagePath, bytes);
+      
+      // Dapatkan URL publik
+      final imageUrl = _supabaseService.client.storage
+        .from(bucketName)
+        .getPublicUrl(storagePath);
+      
+      print('Image uploaded successfully: $imageUrl');
+      
+      // Sisipkan gambar ke editor
+      insertImage(imageUrl);
+      
+      isUploadingImage.value = false;
+      
+      Get.snackbar(
+        'Berhasil',
+        'Gambar berhasil diunggah',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 2),
+      );
+      
+    } catch (e) {
+      isUploadingImage.value = false;
+      print('Error uploading image: $e');
+      
+      // Menampilkan pesan error yang lebih informatif
+      String errorMessage = 'Gagal mengunggah gambar';
+      
+      if (e.toString().contains('401') || e.toString().contains('auth')) {
+        errorMessage = 'Anda perlu login ulang untuk mengunggah gambar';
+      } else if (e.toString().contains('403') || e.toString().contains('permission')) {
+        errorMessage = 'Tidak memiliki izin untuk mengunggah gambar';
+      } else if (e.toString().contains('404') || e.toString().contains('bucket not found')) {
+        errorMessage = 'Bucket penyimpanan tidak ditemukan. Silakan hubungi administrator.';
+      }
+      
+      Get.snackbar(
+        'Error',
+        '$errorMessage: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
+    }
+  }
+  
+  void insertImage(String imageUrl) {
+    if (_quillController == null) return;
+    
+    try {
+      // Get current selection or end of document
+      final index = _quillController!.selection.baseOffset >= 0 
+          ? _quillController!.selection.baseOffset 
+          : _quillController!.document.length - 1;
+      
+      // Always insert a new line before the image if not at the start of document
+      if (index > 0) {
+        _quillController!.document.insert(index, '\n');
+      }
+      
+      // Insert the image embed
+      final imageEmbed = BlockEmbed.image(imageUrl);
+      _quillController!.document.insert(index + 1, imageEmbed);
+      
+      // Insert a new line after the image
+      _quillController!.document.insert(index + 2, '\n');
+      
+      // Update selection to after the image
+      _quillController!.updateSelection(
+        TextSelection.collapsed(offset: index + 3),
+        ChangeSource.local,
+      );
+      
+      // Mark as dirty to trigger autosave
+      isDirty.value = true;
+      
+      // Force a document change notification
+      _onDocumentChange();
+    } catch (e) {
+      print('Error inserting image into editor: $e');
+      Get.snackbar(
+        'Error',
+        'Gagal menyisipkan gambar ke editor: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 } 

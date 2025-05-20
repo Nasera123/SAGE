@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';import 'package:get/get.dart';import 'package:flutter_quill/flutter_quill.dart';import '../controllers/note_editor_controller.dart';import '../../../data/models/tag_model.dart' as tag_model;import 'package:intl/intl.dart';import '../../../modules/home/controllers/home_controller.dart';
+import 'package:flutter/material.dart';import 'package:get/get.dart';import 'package:flutter_quill/flutter_quill.dart';import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';import '../controllers/note_editor_controller.dart';import '../../../data/models/tag_model.dart' as tag_model;import 'package:intl/intl.dart';import '../../../modules/home/controllers/home_controller.dart';import 'dart:async';
 
 class NoteEditorView extends GetView<NoteEditorController> {
   const NoteEditorView({Key? key}) : super(key: key);
@@ -213,67 +213,36 @@ class NoteEditorView extends GetView<NoteEditorController> {
                 child: Divider(),
               ),
               
-              // Simple toolbar
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                constraints: const BoxConstraints(maxHeight: 56),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Center(
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.format_bold),
-                          onPressed: () => controller.quillController.formatSelection(Attribute.bold),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.format_italic),
-                          onPressed: () => controller.quillController.formatSelection(Attribute.italic),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.format_underline),
-                          onPressed: () => controller.quillController.formatSelection(Attribute.underline),
-                        ),
-                        const VerticalDivider(),
-                        IconButton(
-                          icon: const Icon(Icons.format_list_bulleted),
-                          onPressed: () => controller.quillController.formatSelection(Attribute.ul),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.format_list_numbered),
-                          onPressed: () => controller.quillController.formatSelection(Attribute.ol),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ),
-            
-            // Editor
-            Expanded(
-              child: Container(
+              // Editor
+              Expanded(
+                child: Container(
                   padding: const EdgeInsets.all(16.0),
                   color: Theme.of(context).colorScheme.background.withOpacity(0.5),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Theme.of(context).shadowColor.withOpacity(0.05),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                  child: Stack(
+                    children: [
+                      // Editor container
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Theme.of(context).shadowColor.withOpacity(0.05),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                padding: const EdgeInsets.all(16.0),
-                child: QuillEditor.basic(
-                  controller: controller.quillController,
-                      focusNode: controller.editorFocusNode,
+                        padding: const EdgeInsets.all(16.0),
+                        child: NotionLikeQuillEditor(
+                          controller: controller.quillController,
+                          focusNode: controller.editorFocusNode,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
             
             // Tombol simpan yang jelas
             Padding(
@@ -418,6 +387,336 @@ class NoteEditorView extends GetView<NoteEditorController> {
             child: const Text('Close'),
           ),
         ],
+      ),
+    );
+  }
+} 
+
+class NotionLikeQuillEditor extends StatefulWidget {
+  final QuillController controller;
+  final FocusNode focusNode;
+
+  const NotionLikeQuillEditor({
+    Key? key,
+    required this.controller,
+    required this.focusNode,
+  }) : super(key: key);
+
+  @override
+  State<NotionLikeQuillEditor> createState() => _NotionLikeQuillEditorState();
+}
+
+class _NotionLikeQuillEditorState extends State<NotionLikeQuillEditor> {
+  OverlayEntry? _overlayEntry;
+  final LayerLink _toolbarLayerLink = LayerLink();
+  Timer? _inactivityTimer;
+  
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_checkSelection);
+    widget.controller.addListener(_handleTextChange);
+    
+    // Request focus when editor is loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.focusNode.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _hideToolbar();
+    widget.controller.removeListener(_checkSelection);
+    widget.controller.removeListener(_handleTextChange);
+    _inactivityTimer?.cancel();
+    super.dispose();
+  }
+  
+  void _handleTextChange() {
+    // Reset timer whenever text changes
+    _inactivityTimer?.cancel();
+    
+    // Start a new timer
+    _inactivityTimer = Timer(const Duration(seconds: 5), () {
+      // Show toolbar after 5 seconds of inactivity
+      if (!_hasActiveSelection()) {
+        _showToolbarAtCurrentPosition();
+      }
+    });
+  }
+  
+  bool _hasActiveSelection() {
+    final selection = widget.controller.selection;
+    return selection.baseOffset != selection.extentOffset;
+  }
+  
+  void _showToolbarAtCurrentPosition() {
+    if (widget.controller.document.isEmpty() || !widget.focusNode.hasFocus) {
+      return; // Don't show if document is empty or editor doesn't have focus
+    }
+    
+    // Get current cursor position
+    final selection = widget.controller.selection;
+    if (selection.baseOffset < 0) return;
+    
+    _showToolbar();
+  }
+
+  void _checkSelection() {
+    final selection = widget.controller.selection;
+    final hasSelection = selection.baseOffset != selection.extentOffset;
+    
+    if (hasSelection) {
+      _showToolbar();
+    } else {
+      _hideToolbar();
+    }
+  }
+
+  void _showToolbar() {
+    if (_overlayEntry != null) return;
+    
+    final overlay = Overlay.of(context);
+    _overlayEntry = OverlayEntry(
+      builder: (context) {
+        return Positioned(
+          top: 50,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: Material(
+              elevation: 4,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Font size controls with +/- buttons
+                        _buildFontSizeControls(context),
+                        const VerticalDivider(width: 1, indent: 8, endIndent: 8),
+                        
+                        // Font family dropdown
+                        _buildFontFamilyDropdown(context),
+                        const VerticalDivider(width: 1, indent: 8, endIndent: 8),
+                        
+                        // Basic formatting
+                        _buildButton(context, Icons.format_bold, Attribute.bold),
+                        _buildButton(context, Icons.format_italic, Attribute.italic),
+                        _buildButton(context, Icons.format_underlined, Attribute.underline),
+                        _buildButton(context, Icons.format_strikethrough, Attribute.strikeThrough),
+                        const VerticalDivider(width: 1, indent: 8, endIndent: 8),
+                        _buildButton(context, Icons.format_quote, Attribute.blockQuote),
+                        _buildButton(context, Icons.format_list_bulleted, Attribute.ul),
+                        _buildButton(context, Icons.format_list_numbered, Attribute.ol),
+                        const VerticalDivider(width: 1, indent: 8, endIndent: 8),
+                        
+                        // Image upload button
+                        _buildImageUploadButton(context),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    
+    overlay.insert(_overlayEntry!);
+  }
+
+  // Font size dropdown with increment/decrement buttons
+  Widget _buildFontSizeControls(BuildContext context) {
+    const fontSizes = [
+      '8', '10', '12', '14', '16', '18', '20', '24', '28', '32', '36'
+    ];
+    
+    // Get current font size from selection
+    final styleAttr = widget.controller.getSelectionStyle().attributes;
+    String currentSize = '16'; // default size
+    if (styleAttr.containsKey(Attribute.size.key)) {
+      currentSize = styleAttr[Attribute.size.key]!.value;
+    }
+    
+    // Find index of current size
+    int currentIndex = fontSizes.indexOf(currentSize);
+    if (currentIndex == -1) currentIndex = 4; // Default to '16' if not found
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Decrease font size button
+          InkWell(
+            borderRadius: BorderRadius.circular(4),
+            onTap: () {
+              if (currentIndex > 0) {
+                final newSize = fontSizes[currentIndex - 1];
+                widget.controller.formatSelection(Attribute.fromKeyValue('size', newSize));
+              }
+            },
+            child: const Padding(
+              padding: EdgeInsets.all(4.0),
+              child: Icon(Icons.remove, size: 18),
+            ),
+          ),
+          
+          const SizedBox(width: 4),
+          
+          // Current font size display
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.5)),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              currentSize,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          
+          const SizedBox(width: 4),
+          
+          // Increase font size button
+          InkWell(
+            borderRadius: BorderRadius.circular(4),
+            onTap: () {
+              if (currentIndex < fontSizes.length - 1) {
+                final newSize = fontSizes[currentIndex + 1];
+                widget.controller.formatSelection(Attribute.fromKeyValue('size', newSize));
+              }
+            },
+            child: const Padding(
+              padding: EdgeInsets.all(4.0),
+              child: Icon(Icons.add, size: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Font family dropdown
+  Widget _buildFontFamilyDropdown(BuildContext context) {
+    const fontFamilies = [
+      {'label': 'Sans Serif', 'value': 'sans-serif'},
+      {'label': 'Serif', 'value': 'serif'},
+      {'label': 'Monospace', 'value': 'monospace'},
+      {'label': 'Roboto', 'value': 'Roboto'},
+      {'label': 'Poppins', 'value': 'Poppins'},
+    ];
+    
+    // Get current font family from selection
+    final styleAttr = widget.controller.getSelectionStyle().attributes;
+    String currentFont = 'sans-serif';
+    if (styleAttr.containsKey(Attribute.font.key)) {
+      currentFont = styleAttr[Attribute.font.key]!.value;
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.font_download, size: 20),
+          const SizedBox(width: 4),
+          DropdownButton<String>(
+            value: currentFont,
+            icon: const Icon(Icons.arrow_drop_down, size: 20),
+            underline: Container(),
+            items: fontFamilies.map((font) {
+              return DropdownMenuItem<String>(
+                value: font['value'],
+                child: Text(
+                  font['label']!,
+                  style: TextStyle(fontFamily: font['value']),
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                widget.controller.formatSelection(Attribute.fromKeyValue('font', value));
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildButton(BuildContext context, IconData icon, Attribute attribute) {
+    final isSelected = widget.controller.getSelectionStyle().attributes.containsKey(attribute.key);
+    
+    return IconButton(
+      icon: Icon(icon),
+      iconSize: 20,
+      padding: const EdgeInsets.all(8),
+      color: isSelected 
+        ? Theme.of(context).colorScheme.primary 
+        : Theme.of(context).colorScheme.onSurface,
+      onPressed: () {
+        widget.controller.formatSelection(attribute);
+      },
+    );
+  }
+
+  // Build Image Upload Button
+  Widget _buildImageUploadButton(BuildContext context) {
+    final controller = Get.find<NoteEditorController>();
+    
+    return Obx(() {
+      return IconButton(
+        icon: controller.isUploadingImage.value 
+          ? const SizedBox(
+              width: 20, height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.image),
+        iconSize: 20,
+        padding: const EdgeInsets.all(8),
+        tooltip: 'Insert image',
+        onPressed: controller.isUploadingImage.value 
+          ? null 
+          : () => controller.pickAndUploadImage(),
+      );
+    });
+  }
+
+  void _hideToolbar() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => widget.focusNode.requestFocus(),
+      child: QuillEditor(
+        controller: widget.controller,
+        focusNode: widget.focusNode,
+        scrollController: ScrollController(),
+        config: QuillEditorConfig(
+          scrollable: true,
+          placeholder: 'Start typing...',
+          padding: EdgeInsets.zero,
+          embedBuilders: FlutterQuillEmbeds.editorBuilders(
+            imageEmbedConfig: const QuillEditorImageEmbedConfig(),
+          ),
+        ),
       ),
     );
   }

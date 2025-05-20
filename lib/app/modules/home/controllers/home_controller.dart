@@ -7,6 +7,7 @@ import '../../../data/repositories/note_repository.dart';
 import '../../../data/repositories/folder_repository.dart';
 import '../../../data/repositories/tag_repository.dart';
 import '../../../data/repositories/user_repository.dart';
+import '../../../data/services/supabase_service.dart';
 import '../../../routes/app_pages.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -15,10 +16,14 @@ class HomeController extends GetxController {
   final FolderRepository _folderRepository = Get.find<FolderRepository>();
   final TagRepository _tagRepository = Get.find<TagRepository>();
   final UserRepository _userRepository = Get.find<UserRepository>();
+  final SupabaseService _supabaseService = Get.find<SupabaseService>();
   
   final isLoading = true.obs;
   final hasError = false.obs;
   final errorMessage = ''.obs;
+  
+  // Add a profile refresh trigger
+  final profileRefreshTrigger = 0.obs;
   
   // Get user initials for avatar display
   String getUserInitials() {
@@ -38,17 +43,44 @@ class HomeController extends GetxController {
     return 'U';
   }
   
-  // Get user display name
+  // Get user display name (synchronous version - use email username)
   String getUserDisplayName() {
     final user = _userRepository.currentUser;
     if (user == null) return 'User';
     
-    // Return user email or a default
+    // Just return email username for synchronous calls
     return user.email?.split('@').first ?? 'User';
+  }
+  
+  // Get user display name (asynchronous version)
+  Future<String> getUserDisplayNameAsync() async {
+    // Add the refresh trigger as a dependency to force refresh when it changes
+    profileRefreshTrigger.value;
+    try {
+      final profile = await _userRepository.getUserProfile();
+      if (profile != null && profile.fullName != null && profile.fullName!.isNotEmpty) {
+        return profile.fullName!;
+      }
+    } catch (e) {
+      print('Error getting user profile for display name: $e');
+    }
+    
+    // Fall back to email username
+    final user = _userRepository.currentUser;
+    return user?.email?.split('@').first ?? 'User';
+  }
+  
+  // Add a method to refresh profile data
+  void refreshProfile() {
+    // Increment the trigger to force UI rebuild
+    profileRefreshTrigger.value++;
+    print('Profile refresh triggered: ${profileRefreshTrigger.value}');
   }
   
   // Get profile avatar URL if available
   Future<String?> getUserProfileImage() async {
+    // Add the refresh trigger as a dependency to force refresh when it changes
+    profileRefreshTrigger.value;
     try {
       final profile = await _userRepository.getUserProfile();
       return profile?.avatarUrl;
@@ -81,6 +113,7 @@ class HomeController extends GetxController {
   RealtimeChannel? _foldersChannel;
   RealtimeChannel? _tagsChannel;
   RealtimeChannel? _noteTagsChannel;
+  RealtimeChannel? _profileChannel;
   
   @override
   void onInit() {
@@ -93,12 +126,15 @@ class HomeController extends GetxController {
   void onReady() {
     super.onReady();
     print('HomeController ready');
+    // Refresh profile data when the controller is ready
+    refreshProfile();
   }
   
   // Called when returning to this screen from another screen
   void onPageRevisited() {
     print('Home page revisited');
-    // Always refresh notes when coming back to this screen
+    // Refresh profile and notes when coming back to this screen
+    refreshProfile();
     loadNotes();
   }
   
@@ -108,6 +144,7 @@ class HomeController extends GetxController {
     _foldersChannel?.unsubscribe();
     _tagsChannel?.unsubscribe();
     _noteTagsChannel?.unsubscribe();
+    _profileChannel?.unsubscribe();
     newFolderController.dispose();
     newTagController.dispose();
     editFolderController.dispose();
@@ -142,6 +179,11 @@ class HomeController extends GetxController {
       void handleNoteTagChange(PostgresChangePayload payload) {
           print('Note tag change detected: ${payload.eventType}');
           loadNotes();
+      }
+      
+      void handleProfileChange(PostgresChangePayload payload) {
+          print('Profile change detected: ${payload.eventType}');
+          refreshProfile();
       }
       
       try {
@@ -179,6 +221,26 @@ class HomeController extends GetxController {
       } catch (e) {
         print('Error setting up note tags channel: $e');
       }
+      
+      try {
+        // Setup profile changes subscription
+        _profileChannel = _supabaseService.client.channel('profiles:${userId}');
+        _profileChannel!.onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'profiles',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: userId,
+          ),
+          callback: handleProfileChange,
+        );
+        _profileChannel!.subscribe();
+        print('Profile channel subscription setup successfully');
+      } catch (e) {
+        print('Error setting up profile channel: $e');
+      }
     } catch (e) {
       print('Error setting up realtime subscriptions: $e');
     }
@@ -194,10 +256,31 @@ class HomeController extends GetxController {
         loadFolders(),
         loadTags(),
       ]);
+      
+      // Show a brief success message when manually refreshed
+      if (!Get.isSnackbarOpen) {
+        Get.snackbar(
+          'Refreshed',
+          'Content updated successfully',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+          duration: const Duration(seconds: 1),
+        );
+      }
     } catch (e) {
       hasError.value = true;
       errorMessage.value = 'Error loading data: ${e.toString()}';
       print('Error loading data: $e');
+      
+      // Show error message
+      Get.snackbar(
+        'Error',
+        'Failed to refresh: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     } finally {
       isLoading.value = false;
     }

@@ -74,6 +74,9 @@ class HomeView extends GetView<HomeController> {
         // Add title area to show current folder/tag/search filter
         return Column(
           children: [
+            // Profile display section at the top
+            ProfileCard(controller: controller),
+            
             // Title area showing current view
             Container(
               padding: const EdgeInsets.all(16),
@@ -133,44 +136,57 @@ class HomeView extends GetView<HomeController> {
             // User profile section
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-              child: Row(
+              child: Obx(() => Row(
                 children: [
                   GestureDetector(
                     onTap: () => Get.toNamed(Routes.PROFILE),
-                    child: FutureBuilder<String?>(
-                      future: controller.getUserProfileImage(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return CircleAvatar(
-                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                            child: const SizedBox(
-                              width: 15,
-                              height: 15,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          );
-                        }
-                        
-                        if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
-                          // Display the user's profile image
-                          return CircleAvatar(
-                            backgroundImage: NetworkImage(snapshot.data!),
-                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                          );
-                        } else {
-                          // Display initials if no profile image
-                          return CircleAvatar(
-                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                            child: Text(
-                              controller.getUserInitials(),
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.bold,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.primary,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: FutureBuilder<String?>(
+                        future: controller.getUserProfileImage(),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return CircleAvatar(
+                              radius: 20,
+                              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                              child: const SizedBox(
+                                width: 15,
+                                height: 15,
+                                child: CircularProgressIndicator(strokeWidth: 2),
                               ),
-                            ),
-                          );
-                        }
-                      },
+                            );
+                          }
+                          
+                          if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
+                            // Display the user's profile image
+                            return CircleAvatar(
+                              radius: 20,
+                              backgroundImage: NetworkImage(snapshot.data!),
+                              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                            );
+                          } else {
+                            // Display initials if no profile image
+                            return CircleAvatar(
+                              radius: 20,
+                              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                              child: Text(
+                                controller.getUserInitials(),
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -180,13 +196,29 @@ class HomeView extends GetView<HomeController> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            controller.getUserDisplayName(),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 16,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                          FutureBuilder<String>(
+                            future: controller.getUserDisplayNameAsync(),
+                            builder: (context, snapshot) {
+                              String displayName = 'Loading...';
+                              
+                              if (snapshot.connectionState == ConnectionState.done) {
+                                if (snapshot.hasData) {
+                                  displayName = snapshot.data!;
+                                } else {
+                                  // Fallback if there's an error
+                                  displayName = controller.getUserDisplayName();
+                                }
+                              }
+                              
+                              return Text(
+                                displayName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 16,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
                           ),
                           Text(
                             'Tap to edit profile',
@@ -231,7 +263,7 @@ class HomeView extends GetView<HomeController> {
                     ],
                   ),
                 ],
-              ),
+              )),
             ),
             
             // Search
@@ -590,26 +622,40 @@ class HomeView extends GetView<HomeController> {
       message = 'No notes matching "${controller.searchQuery.value}".';
     }
     
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return RefreshIndicator(
+      onRefresh: () async {
+        // Refresh all data
+        await controller.loadData();
+      },
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          Icon(
-            Icons.note_add,
-            size: 80,
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            style: Theme.of(context).textTheme.titleMedium,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.add),
-            label: const Text('Create Note'),
-            onPressed: controller.createNote,
+          Container(
+            height: MediaQuery.of(context).size.height * 0.8,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.note_add,
+                    size: 80,
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    message,
+                    style: Theme.of(context).textTheme.titleMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.add),
+                    label: const Text('Create Note'),
+                    onPressed: controller.createNote,
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -617,135 +663,141 @@ class HomeView extends GetView<HomeController> {
   }
   
   Widget _buildNotesList(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: controller.notes.length,
-      itemBuilder: (context, index) {
-        final note = controller.notes[index];
-        String content = '';
-    
-        // Clean up content for preview
-        try {
-          final jsonContent = jsonDecode(note.content);
-          if (jsonContent is List && jsonContent.isNotEmpty) {
-            // Extract text content from Delta format
-            for (var op in jsonContent) {
-              if (op is Map && op.containsKey('insert')) {
-                content += op['insert'].toString();
+    return RefreshIndicator(
+      onRefresh: () async {
+        // Refresh all data
+        await controller.loadData();
+      },
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: controller.notes.length,
+        itemBuilder: (context, index) {
+          final note = controller.notes[index];
+          String content = '';
+      
+          // Clean up content for preview
+          try {
+            final jsonContent = jsonDecode(note.content);
+            if (jsonContent is List && jsonContent.isNotEmpty) {
+              // Extract text content from Delta format
+              for (var op in jsonContent) {
+                if (op is Map && op.containsKey('insert')) {
+                  content += op['insert'].toString();
+                }
               }
+            } else {
+              content = "Content preview not available";
             }
-          } else {
-            content = "Content preview not available";
+          } catch (e) {
+            // Handle malformed content
+            content = note.content
+              .replaceAll('[["insert":"', '')
+              .replaceAll('"]]', '')
+              .replaceAll('\\n', '\n');
           }
-        } catch (e) {
-          // Handle malformed content
-          content = note.content
-            .replaceAll('[["insert":"', '')
-            .replaceAll('"]]', '')
-            .replaceAll('\\n', '\n');
-        }
-        
-        // Limit preview length
-        if (content.length > 100) {
-          content = content.substring(0, 100) + '...';
-        }
-        
-        return Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Slidable(
-            endActionPane: ActionPane(
-              motion: const ScrollMotion(),
-              children: [
-                SlidableAction(
-                  onPressed: (context) => _showMoveToFolderDialog(context, note),
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  icon: Icons.folder,
-                  label: 'Move',
-                ),
-                if (note.folderId != null)
-                  SlidableAction(
-                    onPressed: (context) => _removeFromFolder(context, note),
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                    icon: Icons.folder_off,
-                    label: 'Remove from Folder',
-                  ),
-                SlidableAction(
-                  onPressed: (context) => _showDeleteNoteDialog(context, note),
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  icon: Icons.delete,
-                  label: 'Delete',
-                ),
-              ],
-            ),
-            child: InkWell(
+          
+          // Limit preview length
+          if (content.length > 100) {
+            content = content.substring(0, 100) + '...';
+          }
+          
+          return Card(
+            margin: const EdgeInsets.only(bottom: 16),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => controller.openNote(note),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            note.title,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
+            ),
+            child: Slidable(
+              endActionPane: ActionPane(
+                motion: const ScrollMotion(),
+                children: [
+                  SlidableAction(
+                    onPressed: (context) => _showMoveToFolderDialog(context, note),
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    icon: Icons.folder,
+                    label: 'Move',
+                  ),
+                  if (note.folderId != null)
+                    SlidableAction(
+                      onPressed: (context) => _removeFromFolder(context, note),
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      icon: Icons.folder_off,
+                      label: 'Remove from Folder',
+                    ),
+                  SlidableAction(
+                    onPressed: (context) => _showDeleteNoteDialog(context, note),
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    icon: Icons.delete,
+                    label: 'Delete',
+                  ),
+                ],
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => controller.openNote(note),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              note.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        Text(
-                          DateFormat('MMM d, yyyy').format(note.updatedAt),
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.secondary,
-                            fontSize: 12,
+                          Text(
+                            DateFormat('MMM d, yyyy').format(note.updatedAt),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.secondary,
+                              fontSize: 12,
+                            ),
                           ),
+                        ],
+                      ),
+                      if (note.tags.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          children: note.tags.map((tag) => Chip(
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            visualDensity: VisualDensity.compact,
+                            label: Text(
+                              tag.name,
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                            padding: EdgeInsets.zero,
+                          )).toList(),
                         ),
                       ],
-                    ),
-                    if (note.tags.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: note.tags.map((tag) => Chip(
-                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          visualDensity: VisualDensity.compact,
-                          label: Text(
-                            tag.name,
-                            style: const TextStyle(fontSize: 10),
-                          ),
-                          padding: EdgeInsets.zero,
-                        )).toList(),
+                      Text(
+                        content,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                          fontSize: 14,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                    const SizedBox(height: 8),
-                    Text(
-                      content,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                        fontSize: 14,
-                      ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
   
@@ -1130,5 +1182,194 @@ class HomeView extends GetView<HomeController> {
         ],
       ),
     );
+  }
+}
+
+class ProfileCard extends StatelessWidget {
+  final HomeController controller;
+  
+  const ProfileCard({
+    Key? key,
+    required this.controller,
+  }) : super(key: key);
+  
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() => Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Theme.of(context).shadowColor.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            // Avatar with decoration
+            Stack(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary,
+                      width: 2,
+                    ),
+                  ),
+                  child: GestureDetector(
+                    onTap: () => Get.toNamed(Routes.PROFILE),
+                    onLongPress: () {
+                      // Refresh profile data on long press
+                      controller.refreshProfile();
+                      Get.snackbar(
+                        'Profile Refreshed',
+                        'Profile data has been refreshed',
+                        snackPosition: SnackPosition.BOTTOM,
+                        duration: const Duration(seconds: 1),
+                      );
+                    },
+                    child: FutureBuilder<String?>(
+                      future: controller.getUserProfileImage(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return CircleAvatar(
+                            radius: 30,
+                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                            child: const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          );
+                        }
+                        
+                        if (snapshot.hasData && snapshot.data != null && snapshot.data!.isNotEmpty) {
+                          // Display the user's profile image
+                          return CircleAvatar(
+                            radius: 30,
+                            backgroundImage: NetworkImage(snapshot.data!),
+                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                          );
+                        } else {
+                          // Display initials if no profile image
+                          return CircleAvatar(
+                            radius: 30,
+                            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                            child: Text(
+                              controller.getUserInitials(),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 24,
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                // Online status indicator
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.surface,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => Get.toNamed(Routes.PROFILE),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    FutureBuilder<String>(
+                      future: controller.getUserDisplayNameAsync(),
+                      builder: (context, snapshot) {
+                        String displayName = 'Loading...';
+                        
+                        if (snapshot.connectionState == ConnectionState.done) {
+                          if (snapshot.hasData) {
+                            displayName = snapshot.data!;
+                          } else {
+                            // Fallback if there's an error
+                            displayName = controller.getUserDisplayName();
+                          }
+                        }
+                        
+                        return Text(
+                          displayName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Active',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Tap to edit profile',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () => Get.toNamed(Routes.PROFILE),
+              tooltip: 'Edit Profile',
+            ),
+          ],
+        ),
+      ),
+    ));
   }
 }
