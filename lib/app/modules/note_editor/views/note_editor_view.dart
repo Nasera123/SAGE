@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';import 'package:get/get.dart';import 'package:flutter_quill/flutter_quill.dart';import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';import '../controllers/note_editor_controller.dart';import '../../../data/models/tag_model.dart' as tag_model;import 'package:intl/intl.dart';import '../../../modules/home/controllers/home_controller.dart';import 'dart:async';
+import 'package:flutter/material.dart';import 'package:get/get.dart';import 'package:flutter_quill/flutter_quill.dart';import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';import '../controllers/note_editor_controller.dart';import '../../../data/models/tag_model.dart' as tag_model;import 'package:intl/intl.dart';import '../../../modules/home/controllers/home_controller.dart';import 'dart:async';import '../views/music_dialog.dart';
 
 class NoteEditorView extends GetView<NoteEditorController> {
   const NoteEditorView({Key? key}) : super(key: key);
@@ -45,6 +45,11 @@ class NoteEditorView extends GetView<NoteEditorController> {
             icon: const Icon(Icons.tag),
             tooltip: 'Manage Tags',
             onPressed: () => _showTagsDialog(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.music_note),
+            tooltip: 'Background Music',
+            onPressed: () => _showMusicDialog(context),
           ),
           Obx(() {
             if (controller.isSaving.value) {
@@ -387,6 +392,15 @@ class NoteEditorView extends GetView<NoteEditorController> {
             child: const Text('Close'),
           ),
         ],
+      ),
+    );
+  }
+  
+  void _showMusicDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => MusicDialog(
+        noteId: controller.note.id,
       ),
     );
   }

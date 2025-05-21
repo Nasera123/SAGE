@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../controllers/book_controller.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../routes/app_pages.dart';
+import '../../note_editor/views/music_dialog.dart';
 
 class BookView extends GetView<BookController> {
   const BookView({Key? key}) : super(key: key);
@@ -42,6 +43,11 @@ class BookView extends GetView<BookController> {
                 duration: const Duration(seconds: 2),
               );
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.music_note),
+            tooltip: 'Background Music',
+            onPressed: () => _showMusicDialog(context),
           ),
           IconButton(
             icon: const Icon(Icons.save),
@@ -641,6 +647,17 @@ class BookView extends GetView<BookController> {
             child: const Text('Delete'),
           ),
         ],
+      ),
+    );
+  }
+  
+  void _showMusicDialog(BuildContext context) {
+    if (controller.book.value == null) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => MusicDialog(
+        bookId: controller.book.value!.id,
       ),
     );
   }
