@@ -588,7 +588,14 @@ class HomeController extends GetxController {
   
   void signOut() async {
     try {
-      await _userRepository.signOut();
+      // Ensure UserRepository is available before attempting to sign out
+      if (!Get.isRegistered<UserRepository>()) {
+        print('UserRepository not registered! Registering now...');
+        Get.put(UserRepository(), permanent: true);
+      }
+      
+      final userRepository = Get.find<UserRepository>();
+      await userRepository.signOut();
       Get.offAllNamed(Routes.AUTH);
     } catch (e) {
       print('Error signing out: $e');
@@ -598,7 +605,17 @@ class HomeController extends GetxController {
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
+        duration: const Duration(seconds: 5),
       );
+      
+      // If still having issues, try direct Supabase signout as fallback
+      try {
+        final supabaseService = Get.find<SupabaseService>();
+        await supabaseService.signOut();
+        Get.offAllNamed(Routes.AUTH);
+      } catch (fallbackError) {
+        print('Fallback signout also failed: $fallbackError');
+      }
     }
   }
   

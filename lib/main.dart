@@ -4,16 +4,23 @@ import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app/routes/app_pages.dart';
 import 'app/data/services/supabase_service.dart';
+import 'app/data/repositories/user_repository.dart';
 import 'app/init_db.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-  // Initialize Supabase
+    // Initialize Supabase
     print('Initializing Supabase...');
     final service = await SupabaseService.initialize();
     print('Supabase initialized successfully: ${service.hashCode}');
+    
+    // Register UserRepository globally
+    if (!Get.isRegistered<UserRepository>()) {
+      print('Registering UserRepository globally...');
+      Get.put(UserRepository(), permanent: true);
+    }
     
     // Initialize database
     print('Initializing database...');

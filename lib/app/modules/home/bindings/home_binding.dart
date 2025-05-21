@@ -35,8 +35,21 @@ class HomeBinding extends Bindings {
       Get.put<TagRepository>(TagRepository());
     }
     
-    if (!Get.isRegistered<UserRepository>()) {
-      Get.put<UserRepository>(UserRepository());
+    // Ensure UserRepository is registered with permanent flag
+    try {
+      if (!Get.isRegistered<UserRepository>()) {
+        print('Registering UserRepository in HomeBinding');
+        Get.put<UserRepository>(UserRepository(), permanent: true);
+      } else {
+        print('UserRepository already registered');
+        // Make sure it's marked as permanent
+        UserRepository repo = Get.find<UserRepository>();
+        Get.put<UserRepository>(repo, permanent: true);
+      }
+    } catch (e) {
+      print('Error registering UserRepository: $e');
+      // Attempt to register again
+      Get.put<UserRepository>(UserRepository(), permanent: true);
     }
     
     // Controller - initialize after repositories
