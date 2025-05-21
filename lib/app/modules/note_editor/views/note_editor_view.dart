@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';import 'package:get/get.dart';import 'package:flutter_quill/flutter_quill.dart';import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';import '../controllers/note_editor_controller.dart';import '../../../data/models/tag_model.dart' as tag_model;import 'package:intl/intl.dart';import '../../../modules/home/controllers/home_controller.dart';import 'dart:async';import '../views/music_dialog.dart';
+import 'package:flutter/material.dart';import 'package:get/get.dart';import 'package:flutter_quill/flutter_quill.dart';import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';import '../controllers/note_editor_controller.dart';import '../../../data/models/tag_model.dart' as tag_model;import 'package:intl/intl.dart';import '../../../modules/home/controllers/home_controller.dart';import 'dart:async';import '../views/music_dialog.dart';import '../controllers/music_controller.dart';import '../../../data/services/music_service.dart';
 
 class NoteEditorView extends GetView<NoteEditorController> {
   const NoteEditorView({Key? key}) : super(key: key);
@@ -51,6 +51,29 @@ class NoteEditorView extends GetView<NoteEditorController> {
             tooltip: 'Background Music',
             onPressed: () => _showMusicDialog(context),
           ),
+          // Play/Stop button for quick control
+          Obx(() {
+            final musicService = Get.find<MusicService>();
+            final isPlaying = musicService.isPlaying.value;
+            final hasMusic = musicService.currentMusic.value != null;
+            
+            // Only show if there's music available
+            if (!hasMusic) {
+              return const SizedBox.shrink();
+            }
+            
+            return IconButton(
+              icon: Icon(
+                isPlaying ? Icons.music_off : Icons.music_note,
+                color: isPlaying ? Colors.green : null,
+              ),
+              tooltip: isPlaying ? 'Stop Music' : 'Play Music',
+              onPressed: () {
+                final musicController = Get.find<MusicController>();
+                musicController.toggleMusicPlayback();
+              },
+            );
+          }),
           Obx(() {
             if (controller.isSaving.value) {
               return const Center(

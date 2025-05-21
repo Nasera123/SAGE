@@ -82,6 +82,11 @@ class MusicController extends GetxController {
   }
   
   Future<void> loadMusicForNote(String noteId) async {
+    // Make sure we're cleaning up previous state
+    if (currentNoteId != null && currentNoteId != noteId) {
+      await handleLeavingNote();
+    }
+    
     currentNoteId = noteId;
     currentBookId = null;
     
@@ -89,15 +94,40 @@ class MusicController extends GetxController {
       final music = await _musicRepository.getMusicForNote(noteId);
       if (music != null) {
         selectedMusic.value = music;
+        // Explicitly tell the MusicService to play this music
+        await _musicService.loadMusicForNote(noteId);
+        print('Music started for note: $noteId');
+        
+        // Show feedback to user
+        Get.snackbar(
+          'Music Playing',
+          'Background music: ${music.title}',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green.withOpacity(0.7),
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
       } else {
         selectedMusic.value = null;
       }
     } catch (e) {
       print('Error loading music for note: $e');
+      Get.snackbar(
+        'Error',
+        'Could not play music: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
   
   Future<void> loadMusicForBook(String bookId) async {
+    // Make sure we're cleaning up previous state
+    if (currentBookId != null && currentBookId != bookId) {
+      await handleLeavingBook();
+    }
+    
     currentBookId = bookId;
     currentNoteId = null;
     
@@ -105,11 +135,47 @@ class MusicController extends GetxController {
       final music = await _musicRepository.getMusicForBook(bookId);
       if (music != null) {
         selectedMusic.value = music;
+        // Explicitly tell the MusicService to play this music
+        await _musicService.loadMusicForBook(bookId);
+        print('Music started for book: $bookId');
+        
+        // Show feedback to user
+        Get.snackbar(
+          'Music Playing',
+          'Background music: ${music.title}',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green.withOpacity(0.7),
+          colorText: Colors.white,
+          duration: const Duration(seconds: 2),
+        );
       } else {
         selectedMusic.value = null;
       }
     } catch (e) {
       print('Error loading music for book: $e');
+      Get.snackbar(
+        'Error',
+        'Could not play music: ${e.toString()}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+  
+  // Called when leaving a note view
+  Future<void> handleLeavingNote() async {
+    if (currentNoteId != null) {
+      await _musicService.handleLeavingItem();
+      currentNoteId = null;
+    }
+  }
+  
+  // Called when leaving a book view
+  Future<void> handleLeavingBook() async {
+    if (currentBookId != null) {
+      await _musicService.handleLeavingItem();
+      currentBookId = null;
     }
   }
   
@@ -443,7 +509,9 @@ class MusicController extends GetxController {
     }
     
     try {
-      await _musicService.loadAllMusicAsPlaylist();
+      // Start the playlist for the current item (note or book)
+      await _musicService.startPlaylistForCurrentItem();
+      
       Get.snackbar(
         'Success',
         'Started playlist with ${musicList.length} songs',
@@ -473,13 +541,51 @@ class MusicController extends GetxController {
     await _musicService.playPreviousInPlaylist();
   }
   
+  // Stop the playlist
+  Future<void> stopPlaylist() async {
+    await _musicService.stopPlaylist();
+    Get.snackbar(
+      'Playlist Stopped',
+      'Playlist mode has been turned off',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.blue,
+      colorText: Colors.white,
+    );
+  }
+  
   // Toggle playlist mode
   Future<void> togglePlaylistMode(bool enable) async {
     if (enable) {
-      await _musicService.loadAllMusicAsPlaylist();
+      await _musicService.startPlaylistForCurrentItem();
     } else {
       // If turning off playlist mode, just update the flag in service
       _musicService.isPlaylistMode.value = false;
+    }
+  }
+  
+  // Toggle music playback (play/stop)
+  Future<void> toggleMusicPlayback() async {
+    await _musicService.togglePlayback();
+    
+    // Show feedback based on new playing state
+    if (_musicService.isPlaying.value) {
+      Get.snackbar(
+        'Playing',
+        'Music started playing',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green.withOpacity(0.7),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 1),
+      );
+    } else {
+      Get.snackbar(
+        'Stopped',
+        'Music stopped',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.blue.withOpacity(0.7),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 1),
+      );
     }
   }
   

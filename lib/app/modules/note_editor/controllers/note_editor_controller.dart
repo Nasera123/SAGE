@@ -13,6 +13,8 @@ import '../../../data/repositories/tag_repository.dart';
 import '../../../data/services/supabase_service.dart';
 import '../../../modules/home/controllers/home_controller.dart';
 import '../../../modules/book/controllers/book_controller.dart';
+import '../controllers/music_controller.dart';
+import '../../../data/services/music_service.dart';
 
 class NoteEditorController extends GetxController {
   final NoteRepository _noteRepository = Get.find<NoteRepository>();
@@ -815,6 +817,17 @@ class NoteEditorController extends GetxController {
       print('Error saving note before closing: $e');
     }
     
+    // Stop music when leaving the note
+    try {
+      if (Get.isRegistered<MusicController>()) {
+        final musicController = Get.find<MusicController>();
+        await musicController.handleLeavingNote();
+        print('Music stopped when leaving note');
+      }
+    } catch (e) {
+      print('Error stopping music: $e');
+    }
+    
     // Jika ini adalah halaman buku, siapkan untuk refresh nanti
     if (isBookPage.value && bookId.value.isNotEmpty) {
       try {
@@ -921,6 +934,24 @@ class NoteEditorController extends GetxController {
       // Set note dan data terkait
       note = loadedNote;
       titleController.text = note.title;
+      
+      // Load associated music for this note
+      try {
+        if (Get.isRegistered<MusicController>()) {
+          final musicController = Get.find<MusicController>();
+          await musicController.loadMusicForNote(note.id);
+          print('Music loaded for note: ${note.id}');
+          
+          // Explicitly find and play the music for this note
+          final musicService = Get.find<MusicService>();
+          if (!musicService.isPlaying.value && musicService.currentMusic.value != null) {
+            await musicService.play();
+            print('Autoplay started for note: ${note.id}');
+          }
+        }
+      } catch (e) {
+        print('Error loading music for note: $e');
+      }
       
       // Load tags, setup subscriptions, and track collaboration
       loadTags();

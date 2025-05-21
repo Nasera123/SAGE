@@ -19,14 +19,16 @@ class MusicDialog extends StatelessWidget {
     final MusicController controller = Get.find<MusicController>();
 
     // Initialize the controller with the current note or book
-    if (noteId != null) {
-      controller.loadMusicForNote(noteId!);
-    } else if (bookId != null) {
-      controller.loadMusicForBook(bookId!);
-    }
-    
-    // Load all available music
-    controller.loadMusic();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (noteId != null) {
+        controller.loadMusicForNote(noteId!);
+      } else if (bookId != null) {
+        controller.loadMusicForBook(bookId!);
+      }
+      
+      // Load all available music
+      controller.loadMusic();
+    });
 
     return Dialog(
       shape: RoundedRectangleBorder(
@@ -46,16 +48,38 @@ class MusicDialog extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Background Music',
-                  style: TextStyle(
+                Text(
+                  noteId != null ? 'Note Background Music' : 
+                  bookId != null ? 'Book Background Music' : 'Background Music',
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Get.back(),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Main Play/Stop button
+                    Obx(() {
+                      final musicService = Get.find<MusicService>();
+                      return IconButton(
+                        icon: Icon(
+                          musicService.isPlaying.value 
+                              ? Icons.stop_circle : Icons.play_circle,
+                          color: musicService.isPlaying.value 
+                              ? Colors.red : Colors.green,
+                          size: 32,
+                        ),
+                        tooltip: musicService.isPlaying.value 
+                            ? 'Stop Music' : 'Play Music',
+                        onPressed: () => controller.toggleMusicPlayback(),
+                      );
+                    }),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Get.back(),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -154,10 +178,12 @@ class MusicDialog extends StatelessWidget {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(
-                            tooltip: 'Play all as playlist',
-                            icon: const Icon(Icons.playlist_play),
-                            onPressed: () => controller.startPlaylist(),
+                          Tooltip(
+                            message: 'Play all as playlist (only for this page)',
+                            child: IconButton(
+                              icon: const Icon(Icons.playlist_play),
+                              onPressed: () => controller.startPlaylist(),
+                            ),
                           ),
                           Obx(() {
                             // Only show these when in playlist mode
@@ -174,6 +200,11 @@ class MusicDialog extends StatelessWidget {
                                     tooltip: 'Next song',
                                     icon: const Icon(Icons.skip_next),
                                     onPressed: () => controller.nextSong(),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Stop playlist',
+                                    icon: const Icon(Icons.stop),
+                                    onPressed: () => controller.stopPlaylist(),
                                   ),
                                 ],
                               );

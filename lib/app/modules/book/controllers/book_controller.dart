@@ -12,6 +12,8 @@ import '../../../data/services/supabase_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
+import '../../note_editor/controllers/music_controller.dart';
+import '../../../data/services/music_service.dart';
 
 class BookController extends GetxController {
   final BookRepository _bookRepository = Get.find<BookRepository>();
@@ -99,6 +101,24 @@ class BookController extends GetxController {
         
         // Setup real-time subscription
         setupRealtimeSubscription();
+        
+        // Load associated music for this book
+        try {
+          if (Get.isRegistered<MusicController>()) {
+            final musicController = Get.find<MusicController>();
+            await musicController.loadMusicForBook(book.value!.id);
+            print('Music loaded for book: ${book.value!.id}');
+            
+            // Explicitly find and play the music for this book
+            final musicService = Get.find<MusicService>();
+            if (!musicService.isPlaying.value && musicService.currentMusic.value != null) {
+              await musicService.play();
+              print('Autoplay started for book: ${book.value!.id}');
+            }
+          }
+        } catch (e) {
+          print('Error loading music for book: $e');
+        }
       } else {
         hasError.value = true;
         errorMessage.value = 'Book not found';
@@ -611,30 +631,42 @@ class BookController extends GetxController {
     if (book.value == null) return;
     
     try {
-      final success = await _bookRepository.deleteBook(book.value!.id);
+      await _bookRepository.deleteBook(book.value!.id);
       
-      if (success) {
-        Get.back(result: {'deleted': true, 'bookId': book.value!.id});
-        
-        Get.snackbar(
-          'Success',
-          'Book moved to trash',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-      } else {
-        throw Exception('Failed to move book to trash');
-      }
+      // Stop music before navigating back
+      await handleLeavingBook();
+      
+      Get.back(result: {'deleted': true, 'bookId': book.value!.id});
+      
+      Get.snackbar(
+        'Success',
+        'Book moved to trash',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
     } catch (e) {
-      print('Error moving book to trash: $e');
+      print('Error deleting book: $e');
       Get.snackbar(
         'Error',
-        'Failed to move book to trash: ${e.toString()}',
+        'Failed to delete book: ${e.toString()}',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
+    }
+  }
+  
+  // Handle leaving the book view and stop music
+  Future<void> handleLeavingBook() async {
+    try {
+      if (Get.isRegistered<MusicController>()) {
+        final musicController = Get.find<MusicController>();
+        await musicController.handleLeavingBook();
+        print('Music stopped when leaving book');
+      }
+    } catch (e) {
+      print('Error stopping music when leaving book: $e');
     }
   }
   

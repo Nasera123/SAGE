@@ -13,10 +13,13 @@ class MusicService extends GetxService {
   final volume = 0.5.obs;
   final isLooping = false.obs;
   
-  // Playlist functionality
+  // Playlist functionality with page/note specific tracking
   final RxList<Music> playlist = <Music>[].obs;
   final currentPlaylistIndex = 0.obs;
   final isPlaylistMode = false.obs;
+  
+  // Track which note/book the playlist belongs to
+  final playlistOwnerId = ''.obs;
   
   MusicService() {
     // Set up audio player listeners
@@ -81,6 +84,15 @@ class MusicService extends GetxService {
     isPlaying.value = false;
   }
   
+  // Toggle playback - stop if playing, play if stopped
+  Future<void> togglePlayback() async {
+    if (isPlaying.value) {
+      await stop();
+    } else if (currentMusic.value != null) {
+      await play();
+    }
+  }
+  
   // Set looping for current track
   void setLooping(bool loop) {
     isLooping.value = loop;
@@ -138,6 +150,13 @@ class MusicService extends GetxService {
     await play();
   }
   
+  // Stop playlist playback and exit playlist mode
+  Future<void> stopPlaylist() async {
+    isPlaylistMode.value = false;
+    await stop();
+    currentMusic.value = null;
+  }
+  
   // Load a music from the repository
   Future<void> loadMusic(String musicId) async {
     try {
@@ -165,6 +184,9 @@ class MusicService extends GetxService {
         
         currentMusic.value = music;
         await play();
+        
+        // Also load all music into a playlist for this note
+        await loadAllMusicAsPlaylistForItem(noteId);
       } else {
         // Clear and stop if no music
         currentMusic.value = null;
@@ -185,6 +207,9 @@ class MusicService extends GetxService {
         
         currentMusic.value = music;
         await play();
+        
+        // Also load all music into a playlist for this book
+        await loadAllMusicAsPlaylistForItem(bookId);
       } else {
         // Clear and stop if no music
         currentMusic.value = null;
@@ -192,6 +217,69 @@ class MusicService extends GetxService {
       }
     } catch (e) {
       print('Error loading music for book: $e');
+    }
+  }
+  
+  // Used when leaving a note or book to stop music playback
+  Future<void> handleLeavingItem() async {
+    if (!isPlaylistMode.value) {
+      // Only stop if not in playlist mode
+      currentMusic.value = null;
+      await stop();
+    } else {
+      // Clear playlist owner ID when leaving
+      playlistOwnerId.value = '';
+      isPlaylistMode.value = false;
+      currentMusic.value = null;
+      await stop();
+    }
+  }
+  
+  // Load all music as a playlist for a specific note/book
+  Future<void> loadAllMusicAsPlaylistForItem(String itemId) async {
+    try {
+      // Only create a new playlist if we're not already in playlist mode for this item
+      if (playlistOwnerId.value != itemId) {
+        final allMusic = await _musicRepository.getMusic();
+        if (allMusic.isNotEmpty) {
+          playlist.value = allMusic;
+          playlistOwnerId.value = itemId;
+          
+          // Don't auto-enable playlist mode, just prepare the playlist
+          currentPlaylistIndex.value = 0;
+          
+          // Find the currently playing music in the playlist
+          if (currentMusic.value != null) {
+            final index = playlist.indexWhere((music) => music.id == currentMusic.value!.id);
+            if (index >= 0) {
+              currentPlaylistIndex.value = index;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print('Error loading music playlist: $e');
+    }
+  }
+  
+  // Load all music as a playlist and start playback
+  Future<void> startPlaylistForCurrentItem() async {
+    if (playlist.isEmpty || playlistOwnerId.value.isEmpty) {
+      print('Cannot start playlist: No playlist available or no current item');
+      return;
+    }
+    
+    try {
+      isPlaylistMode.value = true;
+      
+      // Set current music to first in playlist if none is playing
+      if (currentMusic.value == null) {
+        currentMusic.value = playlist[currentPlaylistIndex.value];
+      }
+      
+      await play();
+    } catch (e) {
+      print('Error starting playlist: $e');
     }
   }
   

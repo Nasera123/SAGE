@@ -5,6 +5,7 @@ import '../controllers/book_controller.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../routes/app_pages.dart';
 import '../../note_editor/views/music_dialog.dart';
+import '../../note_editor/controllers/music_controller.dart';
 
 class BookView extends GetView<BookController> {
   const BookView({Key? key}) : super(key: key);
@@ -26,345 +27,352 @@ class BookView extends GetView<BookController> {
       }
     });
     
-    return Scaffold(
-      appBar: AppBar(
-        title: Obx(() => Text(controller.book.value?.title ?? 'New Book')),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () {
-              controller.refreshBook();
-              controller.loadBookPages();
-              Get.snackbar(
-                'Refreshed',
-                'Book data refreshed',
-                snackPosition: SnackPosition.BOTTOM,
-                duration: const Duration(seconds: 2),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.music_note),
-            tooltip: 'Background Music',
-            onPressed: () => _showMusicDialog(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: controller.saveBook,
-            tooltip: 'Save Book',
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'delete') {
-                _showDeleteBookDialog(context);
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(Icons.delete, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Delete Book'),
-                  ],
+    return WillPopScope(
+      onWillPop: () async {
+        // Stop music when navigating away from the book
+        await controller.handleLeavingBook();
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Obx(() => Text(controller.book.value?.title ?? 'New Book')),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh',
+              onPressed: () {
+                controller.refreshBook();
+                controller.loadBookPages();
+                Get.snackbar(
+                  'Refreshed',
+                  'Book data refreshed',
+                  snackPosition: SnackPosition.BOTTOM,
+                  duration: const Duration(seconds: 2),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.music_note),
+              tooltip: 'Background Music',
+              onPressed: () => _showMusicDialog(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.save),
+              onPressed: controller.saveBook,
+              tooltip: 'Save Book',
+            ),
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'delete') {
+                  _showDeleteBookDialog(context);
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Delete Book'),
+                    ],
+                  ),
                 ),
+              ],
+            ),
+          ],
+        ),
+        body: Obx(() {
+          if (controller.isLoading.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          if (controller.hasError.value) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error loading book',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(controller.errorMessage.value),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => controller.loadBook(controller.book.value!.id),
+                    child: const Text('Retry'),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ],
-      ),
-      body: Obx(() {
-        if (controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        
-        if (controller.hasError.value) {
-          return Center(
+            );
+          }
+          
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                const SizedBox(height: 16),
-                Text(
-                  'Error loading book',
-                  style: Theme.of(context).textTheme.headlineSmall,
+                // Realtime activity indicator
+                Obx(() {
+                  if (controller.realtimeActivity.isNotEmpty) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.withOpacity(0.5)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.sync, color: Colors.green, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              controller.realtimeActivity.value,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }),
+                
+                // Book cover and image selection
+                Center(
+                  child: Column(
+                    children: [
+                      Stack(
+                        children: [
+                          // Book cover
+                          GestureDetector(
+                            onTap: controller.showImagePickerOptions,
+                            child: SizedBox(
+                              width: 200,
+                              height: 280,
+                              child: Card(
+                                elevation: 4,
+                                clipBehavior: Clip.antiAlias,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Obx(() {
+                                  final hasSelectedNativeImage = controller.selectedCoverImage.value != null;
+                                  final hasSelectedWebImage = controller.selectedCoverImageWeb.value != null;
+                                  final hasCoverImage = controller.book.value?.coverUrl != null && 
+                                                        controller.book.value!.coverUrl!.isNotEmpty;
+                                  
+                                  if (kIsWeb && hasSelectedWebImage) {
+                                    // Show selected image in web
+                                    return Image.memory(
+                                      controller.selectedCoverImageWeb.value!,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                    );
+                                  } else if (!kIsWeb && hasSelectedNativeImage) {
+                                    // Show selected image in mobile
+                                    return Image.file(
+                                      controller.selectedCoverImage.value!,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                    );
+                                  } else if (hasCoverImage) {
+                                    // Show existing cover image
+                                    return CachedNetworkImage(
+                                      imageUrl: controller.book.value!.coverUrl!,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      placeholder: (context, url) => const Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                      errorWidget: (context, url, error) => const Center(
+                                        child: Icon(Icons.image_not_supported, size: 48),
+                                      ),
+                                    );
+                                  } else {
+                                    // Show placeholder
+                                    return Container(
+                                      color: Theme.of(context).colorScheme.surfaceVariant,
+                                      child: Center(
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.add_photo_alternate,
+                                              size: 48,
+                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Add Cover',
+                                              style: TextStyle(
+                                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                }),
+                              ),
+                            ),
+                          ),
+                          
+                          // Camera icon overlay
+                          Positioned(
+                            right: 8,
+                            bottom: 8,
+                            child: GestureDetector(
+                              onTap: controller.showImagePickerOptions,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.camera_alt,
+                                  color: Theme.of(context).colorScheme.onPrimary,
+                                  size: 18,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      // Display loading indicator during cover upload
+                      Obx(() {
+                        if (controller.isUploadingCover.value) {
+                          return Container(
+                            margin: const EdgeInsets.only(top: 16.0),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surfaceVariant,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 20, 
+                                  height: 20, 
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  'Uploading cover...',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      }),
+                      
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+                
+                // Book title field
+                const Text(
+                  'Book Title',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
-                Text(controller.errorMessage.value),
+                TextField(
+                  controller: controller.titleController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter book title',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () => controller.titleController.clear(),
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Pages section
+                const Text(
+                  'Pages',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => controller.loadBook(controller.book.value!.id),
-                  child: const Text('Retry'),
+                
+                if (controller.book.value == null)
+                  const Center(
+                    child: Text('Save the book first to add pages'),
+                  )
+                else if (controller.book.value!.pageIds.isEmpty)
+                  Center(
+                    child: Column(
+                      children: [
+                        const Text('No pages yet'),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add New Page'),
+                          onPressed: controller.createNewPage,
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  _buildPagesList(context),
+                
+                const SizedBox(height: 24),
+                
+                Obx(() => controller.isSaving.value
+                  ? const Center(child: CircularProgressIndicator())
+                  : SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: controller.saveBook,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16.0),
+                        ),
+                        child: Text(controller.book.value == null ? 'Create Book' : 'Save Changes'),
+                      ),
+                    ),
                 ),
               ],
             ),
           );
-        }
-        
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Realtime activity indicator
-              Obx(() {
-                if (controller.realtimeActivity.isNotEmpty) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.withOpacity(0.5)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.sync, color: Colors.green, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            controller.realtimeActivity.value,
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
-              }),
-              
-              // Book cover and image selection
-              Center(
-                child: Column(
-                  children: [
-                    Stack(
-                      children: [
-                        // Book cover
-                        GestureDetector(
-                          onTap: controller.showImagePickerOptions,
-                          child: SizedBox(
-                            width: 200,
-                            height: 280,
-                            child: Card(
-                              elevation: 4,
-                              clipBehavior: Clip.antiAlias,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Obx(() {
-                                final hasSelectedNativeImage = controller.selectedCoverImage.value != null;
-                                final hasSelectedWebImage = controller.selectedCoverImageWeb.value != null;
-                                final hasCoverImage = controller.book.value?.coverUrl != null && 
-                                                      controller.book.value!.coverUrl!.isNotEmpty;
-                                
-                                if (kIsWeb && hasSelectedWebImage) {
-                                  // Show selected image in web
-                                  return Image.memory(
-                                    controller.selectedCoverImageWeb.value!,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                  );
-                                } else if (!kIsWeb && hasSelectedNativeImage) {
-                                  // Show selected image in mobile
-                                  return Image.file(
-                                    controller.selectedCoverImage.value!,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                  );
-                                } else if (hasCoverImage) {
-                                  // Show existing cover image
-                                  return CachedNetworkImage(
-                                    imageUrl: controller.book.value!.coverUrl!,
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    placeholder: (context, url) => const Center(
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                    errorWidget: (context, url, error) => const Center(
-                                      child: Icon(Icons.image_not_supported, size: 48),
-                                    ),
-                                  );
-                                } else {
-                                  // Show placeholder
-                                  return Container(
-                                    color: Theme.of(context).colorScheme.surfaceVariant,
-                                    child: Center(
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.add_photo_alternate,
-                                            size: 48,
-                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            'Add Cover',
-                                            style: TextStyle(
-                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                }
-                              }),
-                            ),
-                          ),
-                        ),
-                        
-                        // Camera icon overlay
-                        Positioned(
-                          right: 8,
-                          bottom: 8,
-                          child: GestureDetector(
-                            onTap: controller.showImagePickerOptions,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.camera_alt,
-                                color: Theme.of(context).colorScheme.onPrimary,
-                                size: 18,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    
-                    // Display loading indicator during cover upload
-                    Obx(() {
-                      if (controller.isUploadingCover.value) {
-                        return Container(
-                          margin: const EdgeInsets.only(top: 16.0),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surfaceVariant,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 20, 
-                                height: 20, 
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                'Uploading cover...',
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    }),
-                    
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
-              
-              // Book title field
-              const Text(
-                'Book Title',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: controller.titleController,
-                decoration: InputDecoration(
-                  hintText: 'Enter book title',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () => controller.titleController.clear(),
-                  ),
-                ),
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Pages section
-              const Text(
-                'Pages',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              if (controller.book.value == null)
-                const Center(
-                  child: Text('Save the book first to add pages'),
-                )
-              else if (controller.book.value!.pageIds.isEmpty)
-                Center(
-                  child: Column(
-                    children: [
-                      const Text('No pages yet'),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add New Page'),
-                        onPressed: controller.createNewPage,
-                      ),
-                    ],
-                  ),
-                )
-              else
-                _buildPagesList(context),
-              
-              const SizedBox(height: 24),
-              
-              Obx(() => controller.isSaving.value
-                ? const Center(child: CircularProgressIndicator())
-                : SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: controller.saveBook,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16.0),
-                      ),
-                      child: Text(controller.book.value == null ? 'Create Book' : 'Save Changes'),
-                    ),
-                  ),
-              ),
-            ],
-          ),
-        );
-      }),
-      floatingActionButton: Obx(() {
-        if (controller.book.value != null) {
-          return FloatingActionButton(
-            onPressed: controller.createNewPage,
-            child: const Icon(Icons.add),
-          );
-        }
-        return const SizedBox.shrink();
-      }),
+        }),
+        floatingActionButton: Obx(() {
+          if (controller.book.value != null) {
+            return FloatingActionButton(
+              onPressed: controller.createNewPage,
+              child: const Icon(Icons.add),
+            );
+          }
+          return const SizedBox.shrink();
+        }),
+      ),
     );
   }
   
@@ -591,6 +599,9 @@ class BookView extends GetView<BookController> {
                       ],
                     ),
                     onTap: () async {
+                      // Stop current book music before navigating to the page
+                      await controller.handleLeavingBook();
+                      
                       // Open the note editor and refresh when returning
                       final result = await Get.toNamed(
                         Routes.NOTE_EDITOR,
@@ -603,6 +614,12 @@ class BookView extends GetView<BookController> {
                       
                       // Pastikan selalu refresh halaman setelah kembali dari editor
                       controller.loadBookPages();
+                      
+                      // Reload book music when returning from the page
+                      if (Get.isRegistered<MusicController>()) {
+                        final musicController = Get.find<MusicController>();
+                        await musicController.loadMusicForBook(controller.book.value!.id);
+                      }
                     },
                   ),
                 ),
