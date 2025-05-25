@@ -12,34 +12,76 @@ class SplashView extends GetView<SplashController> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              'src/black logo.png',
-              height: 100,
-              width: 100,
+            AnimatedBuilder(
+              animation: controller.logoAnimation,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: controller.logoAnimation.value,
+                  child: Opacity(
+                    opacity: controller.logoAnimation.value,
+                    child: child,
+                  ),
+                );
+              },
+              child: Image.asset(
+                'src/black logo.png',
+                height: 100,
+                width: 100,
+              ),
             ),
             const SizedBox(height: 24),
-            Text(
-              'SAGE',
-              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.primary,
+            AnimatedBuilder(
+              animation: controller.titleAnimation,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: controller.titleAnimation.value,
+                  child: Transform.translate(
+                    offset: Offset(0, 20 * (1 - controller.titleAnimation.value)),
+                    child: child,
                   ),
+                );
+              },
+              child: Text(
+                'SAGE',
+                style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+              ),
             ),
             const SizedBox(height: 12),
-            Text(
-              'Your modern note-taking app',
-              style: Theme.of(context).textTheme.bodyLarge,
+            AnimatedBuilder(
+              animation: controller.subtitleAnimation,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: controller.subtitleAnimation.value,
+                  child: child,
+                );
+              },
+              child: Text(
+                'Your modern note-taking app',
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
             ),
             const SizedBox(height: 48),
-            Obx(() {
-              if (controller.isLoading.value) {
-                return CircularProgressIndicator(
-                  color: Theme.of(context).colorScheme.primary,
+            AnimatedBuilder(
+              animation: controller.loaderAnimation,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: controller.loaderAnimation.value,
+                  child: child,
                 );
-              } else {
-                return const SizedBox.shrink();
-              }
-            }),
+              },
+              child: Obx(() {
+                if (controller.isLoading.value) {
+                  return CircularProgressIndicator(
+                    color: Theme.of(context).colorScheme.primary,
+                  );
+                } else {
+                  return const SizedBox.shrink();
+                }
+              }),
+            ),
           ],
         ),
       ),
