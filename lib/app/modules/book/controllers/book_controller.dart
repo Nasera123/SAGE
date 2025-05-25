@@ -371,33 +371,43 @@ class BookController extends GetxController {
     try {
       if (book.value == null) {
         // Create new book
-        final newBook = await _bookRepository.createBook(
-          title: titleController.text.trim(),
-        );
+        print('Creating new book with title: ${titleController.text.trim()}');
         
-        if (newBook != null) {
-          book.value = newBook;
-          
-          // Setup real-time subscriptions immediately for the new book
-          setupRealtimeSubscription();
-          
-          // Upload cover if selected
-          if (selectedCoverImageFile.value != null) {
-            await uploadCoverImage();
-          }
-          
-          Get.snackbar(
-            'Success',
-            'Book created successfully',
-            snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: Colors.green,
-            colorText: Colors.white,
+        try {
+          final newBook = await _bookRepository.createBook(
+            title: titleController.text.trim(),
           );
-        } else {
-          throw Exception('Failed to create book');
+          
+          if (newBook != null) {
+            print('Book created successfully with ID: ${newBook.id}');
+            book.value = newBook;
+            
+            // Setup real-time subscriptions immediately for the new book
+            setupRealtimeSubscription();
+            
+            // Upload cover if selected
+            if (selectedCoverImageFile.value != null) {
+              await uploadCoverImage();
+            }
+            
+            Get.snackbar(
+              'Success',
+              'Book created successfully',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+            );
+          } else {
+            print('Book creation returned null');
+            throw Exception('Failed to create book - server returned null');
+          }
+        } catch (specificError) {
+          print('Specific error creating book: $specificError');
+          throw Exception('Failed to create book: $specificError');
         }
       } else {
         // Update existing book
+        print('Updating existing book with ID: ${book.value!.id}');
         book.value!.update(
           title: titleController.text.trim(),
         );
@@ -421,18 +431,19 @@ class BookController extends GetxController {
             colorText: Colors.white,
           );
         } else {
-          throw Exception('Failed to update book');
+          throw Exception('Failed to update book - server returned false');
         }
       }
     } catch (e) {
+      print('Error saving book (detailed): $e');
       Get.snackbar(
         'Error',
         'Failed to save book: ${e.toString()}',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,
+        duration: Duration(seconds: 5),
       );
-      print('Error saving book: $e');
     } finally {
       isSaving.value = false;
     }

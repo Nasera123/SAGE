@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'dart:convert';
 import 'package:line_icons/line_icons.dart';
+import '../../../modules/book/controllers/inbox_controller.dart';
 
 class HomeView extends GetView<HomeController> {
   const HomeView({Key? key}) : super(key: key);
@@ -269,7 +270,7 @@ class HomeView extends GetView<HomeController> {
             // Search
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: InkWell(
+              child: GestureDetector(
                 onTap: () => _showSearchDialog(context),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -284,11 +285,38 @@ class HomeView extends GetView<HomeController> {
                         color: Theme.of(context).colorScheme.onSurfaceVariant
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Search',
-                        style: TextStyle(
+                      Expanded(
+                        child: Text(
+                          'Search',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      PopupMenuButton<String>(
+                        tooltip: 'Search options',
+                        icon: Icon(
+                          Icons.arrow_drop_down,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
+                        onSelected: (value) {
+                          if (value == 'notes') {
+                            _showSearchDialog(context);
+                          } else if (value == 'books') {
+                            // Open search dialog with books tab pre-selected
+                            _showBookSearchDialog(context);
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem<String>(
+                            value: 'notes',
+                            child: Text('Search My Notes'),
+                          ),
+                          const PopupMenuItem<String>(
+                            value: 'books',
+                            child: Text('Search Published Books'),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -313,18 +341,51 @@ class HomeView extends GetView<HomeController> {
                       },
                     ),
                     ListTile(
-                      leading: const Icon(LineIcons.inbox),
-                      title: const Text('Inbox'),
-                      onTap: () {
-                        Get.back();
-                        Get.snackbar('Coming Soon', 'Inbox functionality will be available soon',
-                          snackPosition: SnackPosition.BOTTOM);
-                      },
+                      leading: const Icon(Icons.menu_book),
+                      title: const Text('My Books'),
+                      onTap: () => Get.toNamed(Routes.BOOK_LIST),
+                    ),
+                    
+                    // Reading List
+                    ListTile(
+                      leading: const Icon(Icons.bookmark),
+                      title: const Text('My Reading List'),
+                      onTap: () => Get.toNamed(Routes.READLIST),
+                    ),
+                    
+                    // Comments Inbox
+                    ListTile(
+                      leading: const Icon(Icons.inbox),
+                      title: const Text('Comments Inbox'),
+                      onTap: () => Get.toNamed(Routes.INBOX),
+                      trailing: Obx(() {
+                        if (Get.isRegistered<InboxController>(tag: 'global_inbox')) {
+                          final inboxController = Get.find<InboxController>(tag: 'global_inbox');
+                          if (inboxController.unreadCount.value > 0) {
+                            return Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${inboxController.unreadCount.value}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            );
+                          }
+                        }
+                        return const SizedBox.shrink();
+                      }),
                     ),
                     
                     const Divider(),
                     
-                    // Private section
+                    // PRIVATE section
                     Padding(
                       padding: const EdgeInsets.only(left: 16.0, top: 8.0, bottom: 4.0),
                       child: Text(
@@ -335,16 +396,6 @@ class HomeView extends GetView<HomeController> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                    ),
-                    
-                    ListTile(
-                      leading: const Icon(LineIcons.book),
-                      title: const Text('Reading List'),
-                      onTap: () {
-                        Get.back();
-                        Get.snackbar('Feature Coming Soon', 'Reading List will be added in future updates',
-                          snackPosition: SnackPosition.BOTTOM);
-                      },
                     ),
                     
                     ListTile(
@@ -805,35 +856,133 @@ class HomeView extends GetView<HomeController> {
     final searchController = TextEditingController();
     searchController.text = controller.searchQuery.value;
     
+    // Tab selection index
+    int selectedTabIndex = 0;
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Search Notes'),
-        content: TextField(
-          controller: searchController,
-          decoration: const InputDecoration(
-            hintText: 'Enter search term',
-            prefixIcon: Icon(Icons.search),
-          ),
-          autofocus: true,
-          onSubmitted: (value) {
-            controller.search(value);
-            Get.back();
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              controller.search(searchController.text);
-              Get.back();
-            },
-            child: const Text('Search'),
-          ),
-        ],
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            contentPadding: EdgeInsets.zero,
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => selectedTabIndex = 0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: selectedTabIndex == 0 
+                              ? Theme.of(context).colorScheme.primary 
+                              : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        'My Notes',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: selectedTabIndex == 0
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurface,
+                          fontSize: selectedTabIndex == 0 ? 16 : 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => selectedTabIndex = 1),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(
+                            color: selectedTabIndex == 1 
+                              ? Theme.of(context).colorScheme.primary 
+                              : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        'Published Books',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: selectedTabIndex == 1
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurface,
+                          fontSize: selectedTabIndex == 1 ? 16 : 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Container(
+              width: double.maxFinite,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: searchController,
+                    decoration: InputDecoration(
+                      hintText: selectedTabIndex == 0 
+                        ? 'Search your notes' 
+                        : 'Search published books',
+                      prefixIcon: const Icon(Icons.search),
+                    ),
+                    autofocus: true,
+                    onSubmitted: (value) {
+                      if (selectedTabIndex == 0) {
+                        controller.search(value);
+                        Get.back();
+                      } else {
+                        Get.back();
+                        Get.toNamed(
+                          Routes.BOOK_SEARCH,
+                          arguments: {'query': value}
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Get.back(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final value = searchController.text.trim();
+                  if (selectedTabIndex == 0) {
+                    controller.search(value);
+                    Get.back();
+                  } else {
+                    Get.back();
+                    if (value.isNotEmpty) {
+                      Get.toNamed(
+                        Routes.BOOK_SEARCH,
+                        arguments: {'query': value}
+                      );
+                    }
+                  }
+                },
+                child: const Text('Search'),
+              ),
+            ],
+          );
+        }
       ),
     );
   }
@@ -1178,6 +1327,47 @@ class HomeView extends GetView<HomeController> {
               Get.back();
             },
             child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showBookSearchDialog(BuildContext context) {
+    final searchController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Search Published Books'),
+        content: TextField(
+          controller: searchController,
+          decoration: const InputDecoration(
+            hintText: 'Enter book title or description',
+            prefixIcon: Icon(Icons.search),
+          ),
+          autofocus: true,
+          onSubmitted: (value) {
+            if (value.trim().isNotEmpty) {
+              Get.back();
+              Get.toNamed(Routes.BOOK_SEARCH, arguments: {'query': value.trim()});
+            }
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final query = searchController.text.trim();
+              if (query.isNotEmpty) {
+                Get.back();
+                Get.toNamed(Routes.BOOK_SEARCH, arguments: {'query': query});
+              }
+            },
+            child: const Text('Search'),
           ),
         ],
       ),

@@ -15,6 +15,12 @@ abstract class Routes {
   static const BOOK = _Paths.BOOK;
   static const BOOK_LIST = _Paths.BOOK_LIST;
   static const TRASH = _Paths.TRASH;
+  static const PUBLIC_LIBRARY = _Paths.PUBLIC_LIBRARY;
+  static const PUBLIC_BOOK_READER = _Paths.PUBLIC_BOOK_READER;
+  static const BOOK_SEARCH = _Paths.BOOK_SEARCH;
+  static const BOOK_COMMENTS = _Paths.BOOK_COMMENTS;
+  static const READLIST = _Paths.READLIST;
+  static const INBOX = _Paths.INBOX;
 }
 
 abstract class _Paths {
@@ -31,4 +37,10 @@ abstract class _Paths {
   static const BOOK = '/book';
   static const BOOK_LIST = '/book_list';
   static const TRASH = '/trash';
+  static const PUBLIC_LIBRARY = '/public_library';
+  static const PUBLIC_BOOK_READER = '/public_book_reader';
+  static const BOOK_SEARCH = '/book_search';
+  static const BOOK_COMMENTS = '/book_comments';
+  static const READLIST = '/readlist';
+  static const INBOX = '/inbox';
 }

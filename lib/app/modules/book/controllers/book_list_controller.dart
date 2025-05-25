@@ -48,6 +48,53 @@ class BookListController extends GetxController {
     super.onClose();
   }
   
+  // Publish a book
+  Future<bool> publishBook(String bookId) async {
+    try {
+      final success = await _bookRepository.publishBook(bookId);
+      if (success) {
+        // Update local state
+        final bookIndex = books.indexWhere((book) => book.id == bookId);
+        if (bookIndex >= 0) {
+          final updatedBook = books[bookIndex].copyWith(isPublic: true);
+          books[bookIndex] = updatedBook;
+          books.refresh();
+        }
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error publishing book: $e');
+      return false;
+    }
+  }
+  
+  // Unpublish a book
+  Future<bool> unpublishBook(String bookId) async {
+    try {
+      final success = await _bookRepository.unpublishBook(bookId);
+      if (success) {
+        // Update local state
+        final bookIndex = books.indexWhere((book) => book.id == bookId);
+        if (bookIndex >= 0) {
+          final updatedBook = books[bookIndex].copyWith(isPublic: false);
+          books[bookIndex] = updatedBook;
+          books.refresh();
+        }
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Error unpublishing book: $e');
+      return false;
+    }
+  }
+  
+  // Navigate to public library
+  void goToPublicLibrary() {
+    Get.toNamed(Routes.PUBLIC_LIBRARY);
+  }
+  
   // Memulai timer untuk periodic refresh setiap 15 detik
   void _startAutoRefreshTimer() {
     _autoRefreshTimer?.cancel();
@@ -85,7 +132,8 @@ class BookListController extends GetxController {
     for (int i = 0; i < oldList.length; i++) {
       if (oldList[i].id != newList[i].id ||
           oldList[i].updatedAt != newList[i].updatedAt ||
-          oldList[i].pageIds.length != newList[i].pageIds.length) {
+          oldList[i].pageIds.length != newList[i].pageIds.length ||
+          oldList[i].isPublic != newList[i].isPublic) {
         return true;
       }
     }
@@ -160,6 +208,11 @@ class BookListController extends GetxController {
                   print('BookListController: book page count changed: ${updatedBook.title} - $oldPageCount -> $newPageCount');
                 }
                 
+                // Cek jika status publikasi berubah untuk log
+                if (books[index].isPublic != updatedBook.isPublic) {
+                  print('BookListController: book publication status changed: ${updatedBook.title} - isPublic: ${updatedBook.isPublic}');
+                }
+                
                 // Update buku di list
                 books[index] = updatedBook;
                 books.refresh(); // Pastikan UI diperbarui
@@ -200,26 +253,40 @@ class BookListController extends GetxController {
     }
   }
   
+  // Full reload with loading indicator
   Future<void> loadBooks() async {
-    isLoading.value = true;
-    hasError.value = false;
-    
     try {
-      print('BookListController: loading all books');
-      books.value = await _bookRepository.getBooks();
+      isLoading.value = true;
+      hasError.value = false;
+      
+      final loadedBooks = await _bookRepository.getBooks();
+      books.value = loadedBooks;
     } catch (e) {
       hasError.value = true;
-      errorMessage.value = 'Error loading books: ${e.toString()}';
+      errorMessage.value = e.toString();
       print('Error loading books: $e');
     } finally {
       isLoading.value = false;
     }
   }
   
-  // Refresh data when returning to this screen
-  void refreshData() {
-    print('BookListController: refreshData called');
-    loadBooks();
+  // Public method for refreshing data, with loading state updates
+  Future<void> refreshData() async {
+    if (!isLoading.value) {
+      try {
+        isLoading.value = true;
+        hasError.value = false;
+        
+        final updatedBooks = await _bookRepository.getBooks();
+        books.value = updatedBooks;
+      } catch (e) {
+        hasError.value = true;
+        errorMessage.value = e.toString();
+        print('Error refreshing books: $e');
+      } finally {
+        isLoading.value = false;
+      }
+    }
   }
   
   // Directly handle book deletion from UI

@@ -5,6 +5,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app/routes/app_pages.dart';
 import 'app/data/services/supabase_service.dart';
 import 'app/data/repositories/user_repository.dart';
+import 'app/data/repositories/book_comment_repository.dart';
+import 'app/data/repositories/readlist_repository.dart';
+import 'app/data/repositories/book_repository.dart';
+import 'app/modules/book/controllers/inbox_controller.dart';
+import 'app/modules/book/controllers/readlist_controller.dart';
 import 'app/init_db.dart';
 
 void main() async {
@@ -16,11 +21,17 @@ void main() async {
     final service = await SupabaseService.initialize();
     print('Supabase initialized successfully: ${service.hashCode}');
     
-    // Register UserRepository globally
-    if (!Get.isRegistered<UserRepository>()) {
-      print('Registering UserRepository globally...');
-      Get.put(UserRepository(), permanent: true);
-    }
+    // Register repositories globally
+    print('Registering repositories globally...');
+    Get.put(UserRepository(), permanent: true);
+    Get.put(BookRepository(), permanent: true);
+    Get.put(BookCommentRepository(), permanent: true);
+    Get.put(ReadlistRepository(), permanent: true);
+    
+    // Initialize controllers
+    print('Initializing global controllers...');
+    Get.put(InboxController(), permanent: true, tag: 'global_inbox');
+    Get.put(ReadlistController(), permanent: true, tag: 'global_readlist');
     
     // Initialize database
     print('Initializing database...');

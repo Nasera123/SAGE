@@ -19,6 +19,18 @@ import '../modules/book/bindings/book_binding.dart';
 import '../modules/book/views/book_view.dart';
 import '../modules/book/bindings/book_list_binding.dart';
 import '../modules/book/views/book_list_view.dart';
+import '../modules/book/bindings/public_library_binding.dart';
+import '../modules/book/views/public_library_view.dart';
+import '../modules/book/bindings/public_book_reader_binding.dart';
+import '../modules/book/views/public_book_reader_view.dart';
+import '../modules/book/bindings/book_search_binding.dart';
+import '../modules/book/views/book_search_view.dart';
+import '../modules/book/bindings/book_comments_binding.dart';
+import '../modules/book/views/book_comments_view.dart';
+import '../modules/book/bindings/readlist_binding.dart';
+import '../modules/book/views/readlist_view.dart';
+import '../modules/book/bindings/inbox_binding.dart';
+import '../modules/book/views/inbox_view.dart';
 import '../modules/trash/bindings/trash_binding.dart';
 import '../modules/trash/views/trash_view.dart';
 
@@ -83,6 +95,36 @@ class AppPages {
       name: _Paths.BOOK_LIST,
       page: () => const BookListView(),
       binding: BookListBinding(),
+    ),
+    GetPage(
+      name: _Paths.PUBLIC_LIBRARY,
+      page: () => const PublicLibraryView(),
+      binding: PublicLibraryBinding(),
+    ),
+    GetPage(
+      name: _Paths.PUBLIC_BOOK_READER,
+      page: () => const PublicBookReaderView(),
+      binding: PublicBookReaderBinding(),
+    ),
+    GetPage(
+      name: _Paths.BOOK_SEARCH,
+      page: () => const BookSearchView(),
+      binding: BookSearchBinding(),
+    ),
+    GetPage(
+      name: _Paths.BOOK_COMMENTS,
+      page: () => const BookCommentsView(),
+      binding: BookCommentsBinding(),
+    ),
+    GetPage(
+      name: _Paths.READLIST,
+      page: () => const ReadlistView(),
+      binding: ReadlistBinding(),
+    ),
+    GetPage(
+      name: _Paths.INBOX,
+      page: () => const InboxView(),
+      binding: InboxBinding(),
     ),
     GetPage(
       name: _Paths.TRASH,
