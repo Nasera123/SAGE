@@ -829,4 +829,73 @@ class BookRepository extends GetxService {
       return null;
     }
   }
+  
+  // Get books by category
+  Future<List<Book>> getBooksByCategory(String categoryId, {bool includeDeleted = false}) async {
+    final User? currentUser = _supabaseService.client.auth.currentUser;
+    if (currentUser == null) return [];
+    
+    try {
+      var query = _supabaseService.client
+          .from('book_categories')
+          .select('book_id')
+          .eq('category_id', categoryId);
+      
+      final bookIds = await query;
+      
+      if (bookIds.isEmpty) {
+        return [];
+      }
+      
+      final bookIdList = bookIds.map((item) => item['book_id'] as String).toList();
+      
+      query = _supabaseService.client
+          .from('books')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .inFilter('id', bookIdList);
+          
+      // Exclude deleted books by default
+      if (!includeDeleted) {
+        query = query.eq('is_deleted', false);
+      }
+      
+      final response = await query.order('updated_at', ascending: false);
+      
+      return response.map<Book>((book) => Book.fromJson(book)).toList();
+    } catch (e) {
+      print('Error getting books by category: $e');
+      return [];
+    }
+  }
+  
+  // Get public books by category
+  Future<List<Book>> getPublicBooksByCategory(String categoryId, {int limit = 20, int offset = 0}) async {
+    try {
+      final bookIdsQuery = await _supabaseService.client
+          .from('book_categories')
+          .select('book_id')
+          .eq('category_id', categoryId);
+      
+      if (bookIdsQuery.isEmpty) {
+        return [];
+      }
+      
+      final bookIdList = bookIdsQuery.map((item) => item['book_id'] as String).toList();
+      
+      final response = await _supabaseService.client
+          .from('books')
+          .select()
+          .inFilter('id', bookIdList)
+          .eq('is_public', true)
+          .eq('is_deleted', false)
+          .order('updated_at', ascending: false)
+          .range(offset, offset + limit - 1);
+      
+      return response.map<Book>((json) => Book.fromJson(json)).toList();
+    } catch (e) {
+      print('Error getting public books by category: $e');
+      return [];
+    }
+  }
 } 

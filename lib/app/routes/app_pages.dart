@@ -31,6 +31,7 @@ import '../modules/book/bindings/readlist_binding.dart';
 import '../modules/book/views/readlist_view.dart';
 import '../modules/book/bindings/inbox_binding.dart';
 import '../modules/book/views/inbox_view.dart';
+import '../modules/book/bindings/category_binding.dart';
 import '../modules/trash/bindings/trash_binding.dart';
 import '../modules/trash/views/trash_view.dart';
 
@@ -90,16 +91,19 @@ class AppPages {
       name: _Paths.BOOK,
       page: () => const BookView(),
       binding: BookBinding(),
+      bindings: [CategoryBinding()],
     ),
     GetPage(
       name: _Paths.BOOK_LIST,
       page: () => const BookListView(),
       binding: BookListBinding(),
+      bindings: [CategoryBinding()],
     ),
     GetPage(
       name: _Paths.PUBLIC_LIBRARY,
       page: () => const PublicLibraryView(),
       binding: PublicLibraryBinding(),
+      bindings: [CategoryBinding()],
     ),
     GetPage(
       name: _Paths.PUBLIC_BOOK_READER,

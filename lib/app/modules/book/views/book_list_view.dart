@@ -1,20 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/book_list_controller.dart';
+import '../controllers/category_controller.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../routes/app_pages.dart';
 import 'package:flutter/services.dart';
 import '../../../data/models/book_model.dart';
+import 'widgets/category_filter_widget.dart';
 
 class BookListView extends GetView<BookListController> {
   const BookListView({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    // Initialize category controller
+    final categoryController = Get.put(CategoryController());
+    
     // Setup focus detector for app lifecycle changes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Initial refresh
       controller.refreshData();
+      categoryController.loadCategories();
       
       // Setup a focus detector to check when app is resumed from background
       SystemChannels.lifecycle.setMessageHandler((msg) async {
@@ -55,215 +61,280 @@ class BookListView extends GetView<BookListController> {
           ),
         ],
       ),
-      body: Obx(() {
-        if (controller.isLoading.value) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        
-        if (controller.hasError.value) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                const SizedBox(height: 16),
-                Text(
-                  'Error loading books',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 8),
-                Text(controller.errorMessage.value),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: controller.loadBooks,
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          );
-        }
-        
-        if (controller.books.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.menu_book,
-                  size: 80,
-                  color: Colors.grey,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'No books yet',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Create your first book to get started',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.add),
-                  label: const Text('Create Book'),
-                  onPressed: () => Get.toNamed(Routes.BOOK),
-                ),
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.public),
-                  label: const Text('Explore Public Books'),
-                  onPressed: controller.goToPublicLibrary,
-                ),
-              ],
-            ),
-          );
-        }
-        
-        return GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 0.7,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
+      body: Column(
+        children: [
+          // Category filter
+          CategoryFilterWidget(
+            isPublic: false,
+            categoryController: categoryController,
           ),
-          itemCount: controller.books.length,
-          itemBuilder: (context, index) {
-            final book = controller.books[index];
-            
-            return GestureDetector(
-              onTap: () => Get.toNamed(
-                Routes.BOOK,
-                arguments: {'bookId': book.id},
-              ),
-              onLongPress: () => _showBookOptionsDialog(context, book),
-              child: Card(
-                clipBehavior: Clip.antiAlias,
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Book cover
-                    Expanded(
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          // Book cover image or placeholder
-                          book.coverUrl != null && book.coverUrl!.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: book.coverUrl!,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => const Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                                errorWidget: (context, url, error) => Container(
-                                  color: Theme.of(context).colorScheme.surfaceVariant,
-                                  child: Center(
-                                    child: Icon(
-                                      Icons.book,
-                                      size: 48,
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : Container(
-                                color: Theme.of(context).colorScheme.surfaceVariant,
-                                child: Center(
-                                  child: Icon(
-                                    Icons.book,
-                                    size: 48,
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ),
-                              
-                          // Public indicator badge
-                          if (book.isPublic)
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.public,
-                                      size: 14,
-                                      color: Theme.of(context).colorScheme.onPrimary,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Public',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Theme.of(context).colorScheme.onPrimary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                        ],
+          
+          // Books list
+          Expanded(
+            child: Obx(() {
+              // Show filtered books if a category is selected
+              if (categoryController.selectedCategoryId.isNotEmpty) {
+                if (categoryController.isLoading.value) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (categoryController.filteredBooks.isEmpty) {
+                  return _buildEmptyFilterState(context);
+                }
+                
+                return GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.7,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
+                  itemCount: categoryController.filteredBooks.length,
+                  itemBuilder: (context, index) {
+                    final book = categoryController.filteredBooks[index];
+                    return _buildBookCard(context, book);
+                  },
+                );
+              }
+              
+              // Show regular book list if no category is selected
+              if (controller.isLoading.value) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              
+              if (controller.hasError.value) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Error loading books',
+                        style: Theme.of(context).textTheme.headlineSmall,
                       ),
-                    ),
-                    
-                    // Book title and info
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            book.title,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Obx(() {
-                            final pageCount = controller.books.firstWhere(
-                              (b) => b.id == book.id, 
-                              orElse: () => book
-                            ).pageIds.length;
-                            
-                            return Text(
-                              '$pageCount ${pageCount == 1 ? 'page' : 'pages'}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
-                            );
-                          }),
-                        ],
+                      const SizedBox(height: 8),
+                      Text(controller.errorMessage.value),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: controller.loadBooks,
+                        child: const Text('Retry'),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                );
+              }
+              
+              if (controller.books.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.menu_book,
+                        size: 80,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No books yet',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Create your first book to get started',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.add),
+                        label: const Text('Create Book'),
+                        onPressed: () => Get.toNamed(Routes.BOOK),
+                      ),
+                      const SizedBox(height: 16),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.public),
+                        label: const Text('Explore Public Books'),
+                        onPressed: controller.goToPublicLibrary,
+                      ),
+                    ],
+                  ),
+                );
+              }
+              
+              return GridView.builder(
+                padding: const EdgeInsets.all(16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 0.7,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
                 ),
-              ),
-            );
-          },
-        );
-      }),
+                itemCount: controller.books.length,
+                itemBuilder: (context, index) {
+                  final book = controller.books[index];
+                  return _buildBookCard(context, book);
+                },
+              );
+            }),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => Get.toNamed(Routes.BOOK),
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+  
+  Widget _buildBookCard(BuildContext context, Book book) {
+    return GestureDetector(
+      onTap: () => Get.toNamed(
+        Routes.BOOK,
+        arguments: {'bookId': book.id},
+      ),
+      onLongPress: () => _showBookOptionsDialog(context, book),
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Book cover
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Book cover image or placeholder
+                  book.coverUrl != null && book.coverUrl!.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: book.coverUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => const Center(
+                          child: CircularProgressIndicator(),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          color: Theme.of(context).colorScheme.surfaceVariant,
+                          child: Center(
+                            child: Icon(
+                              Icons.book,
+                              size: 48,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      )
+                    : Container(
+                        color: Theme.of(context).colorScheme.surfaceVariant,
+                        child: Center(
+                          child: Icon(
+                            Icons.book,
+                            size: 48,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      
+                  // Public indicator badge
+                  if (book.isPublic)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.public,
+                              size: 14,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 4),
+                            const Text(
+                              'Public',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            
+            // Book info
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    book.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${book.pageIds.length} pages',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  // Empty state specifically for when filter returns no results
+  Widget _buildEmptyFilterState(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.filter_list_off,
+              size: 64,
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No books found in this category',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try selecting a different category or clear the filter',
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

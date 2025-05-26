@@ -8,7 +8,6 @@ import '../../../routes/app_pages.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'dart:convert';
-import 'package:line_icons/line_icons.dart';
 import '../../../modules/book/controllers/inbox_controller.dart';
 
 class HomeView extends GetView<HomeController> {
@@ -233,12 +232,12 @@ class HomeView extends GetView<HomeController> {
                     ),
                   ),
                   PopupMenuButton(
-                    icon: const Icon(LineIcons.verticalEllipsis, size: 20),
+                    icon: const Icon(Icons.more_vert, size: 20),
                     itemBuilder: (context) => [
                       PopupMenuItem(
                         child: const Row(
                           children: [
-                            Icon(LineIcons.user, size: 18),
+                            Icon(Icons.person, size: 18),
                             SizedBox(width: 8),
                             Text('Profile'),
                           ],
@@ -251,7 +250,7 @@ class HomeView extends GetView<HomeController> {
                       PopupMenuItem(
                         child: const Row(
                           children: [
-                            Icon(LineIcons.cog, size: 18),
+                            Icon(Icons.settings, size: 18),
                             SizedBox(width: 8),
                             Text('Settings'),
                           ],
@@ -280,7 +279,7 @@ class HomeView extends GetView<HomeController> {
                   ),
                   child: Row(
                     children: [
-                      Icon(LineIcons.search, 
+                      Icon(Icons.search, 
                         size: 18, 
                         color: Theme.of(context).colorScheme.onSurfaceVariant
                       ),
@@ -332,7 +331,7 @@ class HomeView extends GetView<HomeController> {
                   children: [
                     // Navigation items
                     ListTile(
-                      leading: const Icon(LineIcons.home),
+                      leading: const Icon(Icons.home),
                       title: const Text('Home'),
                       selected: controller.selectedFolder.value == null && controller.selectedTag.value == null,
                       onTap: () {
@@ -417,7 +416,7 @@ class HomeView extends GetView<HomeController> {
                     ),
                     
                     ListTile(
-                      leading: const Icon(LineIcons.plusCircle),
+                      leading: const Icon(Icons.add_circle),
                       title: const Text('New page'),
                       onTap: () {
                         Get.back();
@@ -477,7 +476,7 @@ class HomeView extends GetView<HomeController> {
                             ),
                             selected: controller.selectedFolder.value?.id == folder.id,
                             trailing: PopupMenuButton(
-                              icon: const Icon(Icons.more_horiz),
+                              icon: const Icon(Icons.more_vert),
                               itemBuilder: (context) => [
                                 PopupMenuItem(
                                   child: const Text('Rename'),
@@ -594,7 +593,7 @@ class HomeView extends GetView<HomeController> {
                                 ),
                                 selected: controller.selectedTag.value?.id == tag.id,
                                 trailing: IconButton(
-                                  icon: const Icon(Icons.more_horiz),
+                                  icon: const Icon(Icons.more_vert),
                                   onPressed: () {
                                     showModalBottomSheet(
                                       context: context,
@@ -635,7 +634,7 @@ class HomeView extends GetView<HomeController> {
                     
                     // Settings
                     ListTile(
-                      leading: const Icon(LineIcons.cog),
+                      leading: const Icon(Icons.settings),
                       title: const Text('Settings'),
                       onTap: () {
                         Get.back();

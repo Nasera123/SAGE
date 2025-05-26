@@ -14,6 +14,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 import '../../note_editor/controllers/music_controller.dart';
 import '../../../data/services/music_service.dart';
+import '../controllers/category_controller.dart';
 
 class BookController extends GetxController {
   final BookRepository _bookRepository = Get.find<BookRepository>();
@@ -36,6 +37,7 @@ class BookController extends GetxController {
   final Rxn<XFile> selectedCoverImageFile = Rxn<XFile>();
   
   final titleController = TextEditingController();
+  final descriptionController = TextEditingController();
   
   final ImagePicker _imagePicker = ImagePicker();
   
@@ -80,6 +82,7 @@ class BookController extends GetxController {
   @override
   void onClose() {
     titleController.dispose();
+    descriptionController.dispose();
     _bookChannel?.unsubscribe();
     _pagesChannel?.unsubscribe();
     _periodicRefreshTimer?.cancel();
@@ -95,6 +98,7 @@ class BookController extends GetxController {
       
       if (book.value != null) {
         titleController.text = book.value!.title;
+        descriptionController.text = book.value!.description ?? '';
         
         // Load the pages
         await loadBookPages();
@@ -376,6 +380,7 @@ class BookController extends GetxController {
         try {
           final newBook = await _bookRepository.createBook(
             title: titleController.text.trim(),
+            description: descriptionController.text.trim(),
           );
           
           if (newBook != null) {
@@ -388,6 +393,12 @@ class BookController extends GetxController {
             // Upload cover if selected
             if (selectedCoverImageFile.value != null) {
               await uploadCoverImage();
+            }
+            
+            // Initialize the CategoryController to track categories for this book
+            if (Get.isRegistered<CategoryController>()) {
+              final categoryController = Get.find<CategoryController>();
+              await categoryController.loadBookCategories(newBook.id);
             }
             
             Get.snackbar(
@@ -410,6 +421,7 @@ class BookController extends GetxController {
         print('Updating existing book with ID: ${book.value!.id}');
         book.value!.update(
           title: titleController.text.trim(),
+          description: descriptionController.text.trim(),
         );
         
         final success = await _bookRepository.updateBook(book.value!);
@@ -421,6 +433,12 @@ class BookController extends GetxController {
           } else {
             // Trigger refreshBook to ensure UI is updated
             await refreshBook();
+          }
+          
+          // Refresh the categories if needed
+          if (Get.isRegistered<CategoryController>()) {
+            final categoryController = Get.find<CategoryController>();
+            await categoryController.loadBookCategories(book.value!.id);
           }
           
           Get.snackbar(

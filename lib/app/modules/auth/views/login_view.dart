@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/auth_controller.dart';
 import '../../../routes/app_pages.dart';
+import '../../../core/values/assets.dart';
 
 class LoginView extends GetView<AuthController> {
   const LoginView({Key? key}) : super(key: key);
@@ -21,7 +22,7 @@ class LoginView extends GetView<AuthController> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Image.asset(
-                'src/black logo.png',
+                AppAssets.logo,
                 height: 100,
                 width: 100,
               ),

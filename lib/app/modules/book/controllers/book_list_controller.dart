@@ -4,6 +4,7 @@ import 'dart:async';
 import '../../../data/repositories/book_repository.dart';
 import '../../../data/models/book_model.dart';
 import '../../../routes/app_pages.dart';
+import '../controllers/category_controller.dart';
 
 class BookListController extends GetxController {
   final BookRepository _bookRepository = Get.find<BookRepository>();
@@ -279,6 +280,17 @@ class BookListController extends GetxController {
         
         final updatedBooks = await _bookRepository.getBooks();
         books.value = updatedBooks;
+        
+        // Also refresh categories if the CategoryController is registered
+        if (Get.isRegistered<CategoryController>()) {
+          final categoryController = Get.find<CategoryController>();
+          await categoryController.loadCategories();
+          
+          // If a category filter is active, refresh the filtered books
+          if (categoryController.selectedCategoryId.isNotEmpty) {
+            await categoryController.filterBooksByCategory(categoryController.selectedCategoryId.value);
+          }
+        }
       } catch (e) {
         hasError.value = true;
         errorMessage.value = e.toString();

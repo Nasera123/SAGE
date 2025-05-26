@@ -22,11 +22,12 @@ class PublicLibraryController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    loadPublishedBooks();
+    print('PublicLibraryController initialized - will wait for view to load books');
   }
   
   Future<void> loadPublishedBooks({bool refresh = false}) async {
     if (refresh) {
+      print('Refreshing public books list (clearing existing data)');
       currentPage.value = 0;
       books.clear();
       hasMoreBooks.value = true;
@@ -39,6 +40,8 @@ class PublicLibraryController extends GetxController {
       hasError.value = false;
       
       final offset = currentPage.value * booksPerPage;
+      print('Loading published books, page: ${currentPage.value}, offset: $offset');
+      
       final results = await _bookRepository.getPublishedBooks(
         limit: booksPerPage, 
         offset: offset
@@ -46,14 +49,20 @@ class PublicLibraryController extends GetxController {
       
       if (results.isEmpty) {
         hasMoreBooks.value = false;
+        print('No more books to load');
       } else {
+        print('Loaded ${results.length} books');
         books.addAll(results);
         currentPage.value++;
+        
+        // Periksa dan hapus duplikat setelah menambahkan buku baru
+        removeDuplicates();
       }
       
     } catch (e) {
       hasError.value = true;
       errorMessage.value = 'Failed to load books: $e';
+      print('Error loading published books: $e');
     } finally {
       isLoading.value = false;
     }
@@ -113,5 +122,38 @@ class PublicLibraryController extends GetxController {
     } else {
       return nameParts[0][0];
     }
+  }
+  
+  // Memastikan tidak ada buku duplikat
+  void removeDuplicates() {
+    // Gunakan Set untuk menghilangkan duplikat berdasarkan ID
+    final uniqueBooks = <Book>{};
+    final uniqueIds = <String>{};
+    
+    for (final book in books) {
+      if (!uniqueIds.contains(book.id)) {
+        uniqueBooks.add(book);
+        uniqueIds.add(book.id);
+      } else {
+        print('Found duplicate book: ${book.title} (${book.id})');
+      }
+    }
+    
+    // Jika ada duplikat yang ditemukan, perbarui daftar buku
+    if (uniqueBooks.length < books.length) {
+      print('Removed ${books.length - uniqueBooks.length} duplicate books');
+      books.assignAll(uniqueBooks.toList());
+    }
+  }
+  
+  // Clear current books and refresh
+  Future<void> resetAndRefresh() async {
+    books.clear();
+    currentPage.value = 0;
+    hasMoreBooks.value = true;
+    await loadPublishedBooks(refresh: true);
+    
+    // Periksa duplikat setelah memuat
+    removeDuplicates();
   }
 } 

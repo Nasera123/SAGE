@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/splash_controller.dart';
+import '../../../core/values/assets.dart';
 
 class SplashView extends GetView<SplashController> {
   const SplashView({Key? key}) : super(key: key);
@@ -24,7 +25,7 @@ class SplashView extends GetView<SplashController> {
                 );
               },
               child: Image.asset(
-                'src/black logo.png',
+                AppAssets.logo,
                 height: 100,
                 width: 100,
               ),

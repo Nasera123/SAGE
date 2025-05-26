@@ -2,16 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import '../controllers/book_controller.dart';
+import '../controllers/category_controller.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../routes/app_pages.dart';
 import '../../note_editor/views/music_dialog.dart';
 import '../../note_editor/controllers/music_controller.dart';
+import 'widgets/category_filter_widget.dart';
 
 class BookView extends GetView<BookController> {
   const BookView({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    // Initialize category controller
+    final categoryController = Get.put(CategoryController());
+    
     // Auto-refresh saat halaman ditampilkan
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (controller.book.value != null) {
@@ -311,17 +316,44 @@ class BookView extends GetView<BookController> {
                   ),
                 ),
                 
+                // Description field
                 const SizedBox(height: 24),
-                
-                // Pages section
                 const Text(
-                  'Pages',
+                  'Description',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller.descriptionController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'Enter book description (optional)',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () => controller.descriptionController.clear(),
+                    ),
+                  ),
+                ),
+                
+                // Categories section
+                const SizedBox(height: 24),
+                Obx(() {
+                  if (controller.book.value == null) {
+                    return const SizedBox.shrink();
+                  }
+                  
+                  return BookCategorySelectionWidget(
+                    bookId: controller.book.value!.id,
+                    categoryController: categoryController,
+                  );
+                }),
+                
+                // Pages section
+                const SizedBox(height: 24),
                 
                 if (controller.book.value == null)
                   const Center(

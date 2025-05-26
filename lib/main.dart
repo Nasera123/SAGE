@@ -8,9 +8,11 @@ import 'app/data/repositories/user_repository.dart';
 import 'app/data/repositories/book_comment_repository.dart';
 import 'app/data/repositories/readlist_repository.dart';
 import 'app/data/repositories/book_repository.dart';
+import 'app/data/repositories/category_repository.dart';
 import 'app/modules/book/controllers/inbox_controller.dart';
 import 'app/modules/book/controllers/readlist_controller.dart';
 import 'app/init_db.dart';
+import 'app/core/values/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,6 +29,7 @@ void main() async {
     Get.put(BookRepository(), permanent: true);
     Get.put(BookCommentRepository(), permanent: true);
     Get.put(ReadlistRepository(), permanent: true);
+    Get.put(CategoryRepository(), permanent: true);
     
     // Initialize controllers
     print('Initializing global controllers...');
@@ -52,78 +55,8 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       title: 'SAGE',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4355B9),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        brightness: Brightness.light,
-        cardTheme: CardTheme(
-          clipBehavior: Clip.antiAlias,
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          elevation: 0,
-          scrolledUnderElevation: 2,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.all(16),
-        ),
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF7B8FFF),
-          brightness: Brightness.dark,
-        ),
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        cardTheme: CardTheme(
-          clipBehavior: Clip.antiAlias,
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-        appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          elevation: 0,
-          scrolledUnderElevation: 2,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.all(16),
-        ),
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,

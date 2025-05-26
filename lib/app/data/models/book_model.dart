@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+import 'category_model.dart';
 
 class Book {
   final String id;
@@ -13,6 +14,7 @@ class Book {
   DateTime? deletedAt;
   bool isPublic; // Added for publication feature
   String? description; // Added for publication feature
+  List<Category> categories; // Added for category filtering feature
   
   Book({
     String? id,
@@ -27,11 +29,13 @@ class Book {
     this.deletedAt,
     this.isPublic = false, // Default to private
     this.description,
+    List<Category>? categories,
   }) : 
     id = id ?? const Uuid().v4(),
     createdAt = createdAt ?? DateTime.now(),
     updatedAt = updatedAt ?? DateTime.now(),
-    pageIds = pageIds ?? [];
+    pageIds = pageIds ?? [],
+    categories = categories ?? [];
   
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = {
@@ -76,6 +80,9 @@ class Book {
       deletedAt: json['deleted_at'] != null ? DateTime.parse(json['deleted_at']) : null,
       isPublic: json['is_public'] ?? false,
       description: json['description'],
+      categories: json['categories'] != null 
+        ? (json['categories'] as List).map((c) => Category.fromJson(c)).toList()
+        : [],
     );
   }
   
@@ -90,6 +97,7 @@ class Book {
     DateTime? deletedAt,
     bool? isPublic,
     String? description,
+    List<Category>? categories,
   }) {
     return Book(
       id: this.id, // ID never changes
@@ -104,6 +112,7 @@ class Book {
       deletedAt: deletedAt ?? this.deletedAt,
       isPublic: isPublic ?? this.isPublic,
       description: description ?? this.description,
+      categories: categories ?? List.from(this.categories),
     );
   }
   
@@ -147,6 +156,18 @@ class Book {
   
   void unpublish() {
     isPublic = false;
+    updatedAt = DateTime.now();
+  }
+  
+  void addCategory(Category category) {
+    if (!categories.any((c) => c.id == category.id)) {
+      categories.add(category);
+      updatedAt = DateTime.now();
+    }
+  }
+  
+  void removeCategory(String categoryId) {
+    categories.removeWhere((c) => c.id == categoryId);
     updatedAt = DateTime.now();
   }
 } 
