@@ -246,6 +246,8 @@ class BookRepository extends GetxService {
     
     try {
       print('updateBook: Updating book with ID ${book.id}');
+      print('updateBook: Book pageIds to save: ${book.pageIds}');
+      print('updateBook: PageIds length: ${book.pageIds.length}');
       
       // Perbarui timestamp di sisi klien untuk dipastikan terupdate
       book.updatedAt = DateTime.now();
@@ -255,6 +257,7 @@ class BookRepository extends GetxService {
         'id': book.id,
         'title': book.title,
         'updated_at': book.updatedAt.toIso8601String(),
+        'page_ids': book.pageIds, // Include page_ids to ensure they're updated in the database
       };
       
       // Tambahkan cover URL jika ada
@@ -267,12 +270,21 @@ class BookRepository extends GetxService {
         minimalData['description'] = book.description;
       }
       
+      // Include is_public status
+      minimalData['is_public'] = book.isPublic;
+      
       print('updateBook: Using minimal data structure: $minimalData');
       final response = await _supabaseService.client
           .from('books')
           .update(minimalData)
           .eq('id', book.id)
           .eq('user_id', currentUser.id);
+      
+      print('updateBook: Update completed successfully');
+      
+      // Verify the book data after update
+      final updatedBook = await getBook(book.id);
+      print('updateBook: Verified book data after update. PageIds: ${updatedBook?.pageIds}');
       
       return true;
     } catch (e) {

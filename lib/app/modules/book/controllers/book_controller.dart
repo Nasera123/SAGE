@@ -694,6 +694,9 @@ class BookController extends GetxController {
     }
     
     try {
+      print('Creating new page for book: ${book.value!.id}');
+      print('Current page IDs before adding: ${book.value!.pageIds}');
+      
       // Create a new note to use as a page
       final NoteRepository noteRepository = Get.find<NoteRepository>();
       final newNote = await noteRepository.createNote(
@@ -701,19 +704,29 @@ class BookController extends GetxController {
         content: '{"ops":[{"insert":"\\n"}]}', // Empty quill delta
       );
       
+      print('New note created with ID: ${newNote.id}');
+      
       // Update the local book model first to include the new page ID
       if (book.value != null) {
         book.value!.addPage(newNote.id);
         book.value!.updatedAt = DateTime.now(); // Force update timestamp untuk memastikan perubahan terdeteksi
         book.refresh(); // Trigger UI update
+        print('Local book model updated. Page IDs after adding: ${book.value!.pageIds}');
       }
       
       // Add the note ID to the book's pages in database
+      print('Updating book in database...');
       final success = await _bookRepository.updateBook(book.value!);
+      print('Database update result: $success');
       
       if (success) {
         // Add the page to local pages list immediately for better UX
         bookPages.add(newNote);
+        print('Page added to local bookPages list.');
+        
+        // After update, fetch the book again to verify the page was added
+        final updatedBook = await _bookRepository.getBook(book.value!.id);
+        print('Verified book from database - page IDs: ${updatedBook?.pageIds}');
         
         Get.snackbar(
           'Success',
@@ -724,6 +737,7 @@ class BookController extends GetxController {
         );
         
         // Open the note editor for the new page
+        print('Opening note editor for new page: ${newNote.id}');
         Get.toNamed(
           Routes.NOTE_EDITOR,
           arguments: {
@@ -733,6 +747,7 @@ class BookController extends GetxController {
           },
         )?.then((_) {
           // Refresh pages when coming back from editor
+          print('Returned from note editor, refreshing book pages');
           loadBookPages();
         });
       } else {
