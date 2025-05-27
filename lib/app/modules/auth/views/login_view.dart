@@ -13,6 +13,7 @@ class LoginView extends GetView<AuthController> {
       appBar: AppBar(
         title: const Text('Login'),
         centerTitle: true,
+        automaticallyImplyLeading: false,
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),

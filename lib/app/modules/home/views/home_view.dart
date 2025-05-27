@@ -124,7 +124,7 @@ class HomeView extends GetView<HomeController> {
     } else if (controller.searchQuery.isNotEmpty) {
       return 'Search: ${controller.searchQuery.value}';
     } else {
-      return 'All Notes';
+      return 'My Notes';
     }
   }
   
@@ -525,8 +525,7 @@ class HomeView extends GetView<HomeController> {
                     ),
                     
                     Container(
-                      height: 80,
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                       child: Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,

@@ -288,16 +288,29 @@ class HomeController extends GetxController {
   
   Future<void> loadNotes({String? specificFolderId}) async {
     try {
+      List<Note> fetchedNotes;
+      
       if (specificFolderId != null) {
         // When a specific folder ID is provided, load notes for that folder
-        notes.value = await _noteRepository.getNotes(folderId: specificFolderId);
+        fetchedNotes = await _noteRepository.getNotes(folderId: specificFolderId);
       } else if (selectedFolder.value != null) {
-        notes.value = await _noteRepository.getNotes(folderId: selectedFolder.value!.id);
+        fetchedNotes = await _noteRepository.getNotes(folderId: selectedFolder.value!.id);
       } else if (selectedTag.value != null) {
-        notes.value = await _noteRepository.getNotesByTag(selectedTag.value!.id);
+        fetchedNotes = await _noteRepository.getNotesByTag(selectedTag.value!.id);
       } else {
-        notes.value = await _noteRepository.getNotes();
+        // Default view (All Notes) - get all notes
+        fetchedNotes = await _noteRepository.getNotes();
+        
+        // Filter out book pages using multiple criteria:
+        // 1. Notes with originalBookId not null are definitely book pages
+        // 2. Notes with title starting with "New Page in" are also book pages
+        fetchedNotes = fetchedNotes.where((note) => 
+          note.originalBookId == null && 
+          !note.title.startsWith("New Page in")
+        ).toList();
       }
+      
+      notes.value = fetchedNotes;
       
       if (searchQuery.isNotEmpty) {
         filterNotesBySearch();
